@@ -1,0 +1,31 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Node
+node_modules/
+dist/
+coverage/
+
+# Local data: resumes, profiles, chat history never get committed
+backend/data/
+*.db
+
+# Secrets and machine config
+.env
+.env.local
+
+# Local tool binaries (portable Ollama, models)
+.tools/
+
+# Presenter-only notes: they stay on this machine and are never published.
+# (They mention the presenter's AWS account and local paths.)
+docs/HANDOFF.md
+docs/specs/
+workshop/RUN-OF-SHOW.md
+workshop/BUILDER-CENTER-POST.md
+docs/screenshots/hosted-*
+docs/screenshots/agentcore-0*
+docs/screenshots/docker-*

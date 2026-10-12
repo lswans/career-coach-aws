@@ -1,0 +1,13 @@
+# Only backend/ and frontend/ go into the image, and not their local state.
+*
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/coach/
+!frontend/
+frontend/node_modules/
+frontend/dist/
+frontend/coverage/
+**/__pycache__/
+**/*.pyc
+**/.env
+**/.env.local

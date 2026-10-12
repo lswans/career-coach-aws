@@ -1,0 +1,32 @@
+[project]
+name = "career-coach"
+version = "0.1.0"
+description = "Career Coach agent: Strands Agents + Claude on Amazon Bedrock (or a free local model through Ollama) + Amazon Bedrock AgentCore Memory"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "strands-agents[ollama]==1.58.1",
+  "ollama==0.6.3",
+  "bedrock-agentcore==1.24.0",
+  "boto3==1.43.108",
+  "fastapi==0.142.2",
+  "uvicorn==0.54.0",
+  "pydantic==2.13.5",
+  "python-multipart==0.0.32",
+  "pypdf==6.19.0",
+  "python-docx==1.2.0",
+  "ddgs==9.16.0",
+  "pyjwt[crypto]==2.15.1",
+]
+
+[dependency-groups]
+dev = [
+  "pytest==9.1.1",
+  "httpx==0.28.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

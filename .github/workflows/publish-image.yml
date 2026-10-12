@@ -1,0 +1,71 @@
+# Builds the Career Coach image for linux/arm64 and publishes it to Amazon ECR Public.
+# Runs when a version tag is pushed: git tag v1.0.0 && git push origin v1.0.0
+# Setup: deploy infra/publish-image.yaml once (us-east-1), then save its PublishRoleArn output
+# as the repository variable PUBLISH_ROLE_ARN.
+name: Publish coach image
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: read
+  id-token: write  # lets the job sign in to AWS as the publish role, with no stored keys
+
+env:
+  REPOSITORY_NAME: career-coach
+  PYTHON_IMAGE: public.ecr.aws/docker/library/python:3.12.10-slim-bookworm@sha256:fd95fa221297a88e1cf49c55ec1828edd7c5a428187e67b5d1805692d11588db
+  NODE_IMAGE: public.ecr.aws/docker/library/node:22.23.3-bookworm-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392
+
+jobs:
+  publish:
+    runs-on: ubuntu-24.04-arm  # native arm64, so the build needs no emulation
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Backend tests
+        run: |
+          docker run --rm -v "$PWD:/src:ro" "$PYTHON_IMAGE" sh -ec '
+            mkdir /w && cp -r /src/backend /src/sample-data /w/ && cd /w/backend
+            pip install --no-cache-dir --quiet uv==0.10.4
+            UV_PYTHON_DOWNLOADS=never uv sync --frozen --quiet
+            .venv/bin/python -m pytest -q -p no:cacheprovider'
+
+      - name: Frontend tests and type check
+        run: |
+          docker run --rm -v "$PWD/frontend:/src:ro" "$NODE_IMAGE" sh -ec '
+            cp -r /src /w && cd /w && rm -rf node_modules
+            npm ci --no-audit --no-fund
+            npx tsc -p tsconfig.app.json --noEmit
+            npx vitest run'
+
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
+        with:
+          role-to-assume: ${{ vars.PUBLISH_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Build and push
+        run: |
+          set -euo pipefail
+          TAG="${GITHUB_REF_NAME#v}"
+          URI=$(aws ecr-public describe-repositories --repository-names "$REPOSITORY_NAME" \
+            --query 'repositories[0].repositoryUri' --output text)
+          # ECR Public tags can be overwritten, and attendees pin a tag, so never reuse one.
+          if aws ecr-public describe-images --repository-name "$REPOSITORY_NAME" \
+              --image-ids imageTag="$TAG" > /dev/null 2>&1; then
+            echo "::error::$URI:$TAG already exists. Push a new version tag instead."
+            exit 1
+          fi
+          aws ecr-public get-login-password | docker login --username AWS --password-stdin public.ecr.aws
+          docker build --platform linux/arm64 --pull -t "$URI:$TAG" .
+          docker push "$URI:$TAG"
+          DIGEST=$(docker inspect --format '{{index .RepoDigests 0}}' "$URI:$TAG")
+          {
+            echo "### Published"
+            echo "- Tag: \`$URI:$TAG\`"
+            echo "- Digest: \`$DIGEST\`"
+            echo "Put the tag (or the digest) in the ImageUri default of infra/career-coach.yaml."
+          } >> "$GITHUB_STEP_SUMMARY"

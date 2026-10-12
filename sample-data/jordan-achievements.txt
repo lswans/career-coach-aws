@@ -1,0 +1,12 @@
+Achievements
+- 2nd place at the State University Fall Hackathon 2025 (team of 4) for a food-waste tracking app built in 24 hours. I built the backend API.
+- Dean's List for four semesters.
+- Mentored 3 first-year students through the Women in Computing peer mentoring program.
+
+Certifications
+- AWS Certified Cloud Practitioner: studying, exam scheduled for next month.
+- Completed a free online deep learning course (neural networks, CNNs) but have not built a project with it yet.
+
+Other
+- I have never deployed anything on AWS myself. Everything so far has been on free hosting.
+- I get nervous in technical interviews, especially live coding.

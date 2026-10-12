@@ -1,0 +1,421 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Career Coach workshop: one stack that runs the coach in your own AWS account. It creates a
+  sign-in (Amazon Cognito) for your email, a memory (Amazon Bedrock AgentCore Memory), a small
+  server (Amazon EC2, private, no public IP) that downloads and runs the coach, and an HTTPS link
+  (Amazon CloudFront). The coach uses Claude Haiku 5.5 on Amazon Bedrock. Delete the stack when
+  you're done: the NAT gateway and the server are billed by the hour. The server runs the coach's
+  public container image from Amazon ECR Public; nothing is built in your account.
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label: { default: "You" }
+        Parameters: [SignInEmail]
+      - Label: { default: "The coach" }
+        Parameters: [ImageUri]
+      - Label: { default: "Optional" }
+        Parameters: [BedrockModelId, InstanceType, TavilyApiKey, LatestAmiId]
+    ParameterLabels:
+      SignInEmail: { default: "Your email (AWS sends your temporary password here)" }
+      ImageUri: { default: "Coach container image" }
+      BedrockModelId: { default: "Bedrock model" }
+      InstanceType: { default: "Server size" }
+      TavilyApiKey: { default: "Tavily API key (optional web search key)" }
+      LatestAmiId: { default: "Server image (leave as is)" }
+
+Parameters:
+  SignInEmail:
+    Type: String
+    AllowedPattern: "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$"
+    ConstraintDescription: Enter an email address you can read now.
+  ImageUri:
+    Type: String
+    Description: >-
+      The Career Coach image on Amazon ECR Public, with a version tag or digest, as given in the
+      workshop guide. Anyone can download it; no sign-in is needed.
+    AllowedPattern: "^public\\.ecr\\.aws/[a-z0-9][a-z0-9._/-]{0,250}(:[A-Za-z0-9._-]{1,128}|@sha256:[a-f0-9]{64})$"
+    ConstraintDescription: >-
+      An Amazon ECR Public image with a tag or digest, such as
+      public.ecr.aws/example/career-coach:1.0.0.
+  BedrockModelId:
+    Type: String
+    Default: us.anthropic.claude-haiku-5-5
+    AllowedPattern: "^us\\.[a-z0-9.:-]+$"
+    ConstraintDescription: A US cross-region inference profile id, such as us.anthropic.claude-haiku-5-5.
+  InstanceType:
+    Type: String
+    Default: t4g.small
+    AllowedValues: [t4g.small, t4g.medium]
+  TavilyApiKey:
+    Type: String
+    Default: ""
+    NoEcho: true
+    Description: >-
+      Leave empty to use the free keyless search. Busy shared networks can rate-limit it; a free
+      Tavily key avoids that. It is stored in the server's start-up script in your own account.
+  LatestAmiId:
+    Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
+    Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+Rules:
+  SupportedRegion:
+    Assertions:
+      - Assert: !Contains [[us-east-1, us-west-2], !Ref AWS::Region]
+        AssertDescription: Deploy in US East (N. Virginia) or US West (Oregon), where every service this stack uses is available.
+
+Mappings:
+  CloudFrontOriginFacing:  # the CloudFront managed prefix list, per region
+    us-east-1: { PrefixList: pl-3b927c52 }
+    us-west-2: { PrefixList: pl-82a045eb }
+
+Resources:
+  # ---------- Network: a private subnet for the server, a NAT gateway for its outbound calls ----------
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.20.0.0/16
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-vpc" }]
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway  # also required for CloudFront VPC origins
+    Properties:
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-igw" }]
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  PublicSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.0.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-public" }]
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: 10.20.1.0/24
+      AvailabilityZone: !Select [0, !GetAZs ""]
+      MapPublicIpOnLaunch: false
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-private" }]
+
+  NatAddress:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-nat" }]
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      AllocationId: !GetAtt NatAddress.AllocationId
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-nat" }]
+
+  PublicRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRoutes
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnetRoutes:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet
+      RouteTableId: !Ref PublicRoutes
+
+  PrivateRoutes:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+
+  PrivateDefaultRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRoutes
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway
+
+  PrivateSubnetRoutes:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet
+      RouteTableId: !Ref PrivateRoutes
+
+  CoachSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Career Coach server. Only CloudFront may reach it, on port 8000.
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - Description: CloudFront origin-facing addresses
+          IpProtocol: tcp
+          FromPort: 8000
+          ToPort: 8000
+          SourcePrefixListId: !FindInMap [CloudFrontOriginFacing, !Ref AWS::Region, PrefixList]
+      SecurityGroupEgress:
+        - Description: HTTPS out (Bedrock, AgentCore, Cognito keys, the container image, OS updates, web search)
+          IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  # ---------- Sign-in: one account for the person who deploys the stack ----------
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${AWS::StackName}-users"
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      DeletionProtection: INACTIVE
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true  # no public sign-up: only the email given to this stack
+        InviteMessageTemplate:
+          EmailSubject: Your Career Coach sign-in
+          EmailMessage: >-
+            Your Career Coach is being set up. Sign in at the CoachUrl link in your
+            CloudFormation stack's Outputs tab with the email {username} and the temporary
+            password {####}. You'll choose a new password the first time.
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireLowercase: true
+          RequireUppercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          TemporaryPasswordValidityDays: 7
+      AccountRecoverySetting:
+        RecoveryMechanisms: [{ Name: verified_email, Priority: 1 }]
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: career-coach-web
+      GenerateSecret: false  # a browser app can't keep a secret
+      ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      PreventUserExistenceErrors: ENABLED
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 7
+      TokenValidityUnits: { AccessToken: minutes, IdToken: minutes, RefreshToken: days }
+
+  SignInUser:
+    Type: AWS::Cognito::UserPoolUser
+    Properties:
+      UserPoolId: !Ref UserPool
+      Username: !Ref SignInEmail
+      DesiredDeliveryMediums: [EMAIL]
+      UserAttributes:
+        - { Name: email, Value: !Ref SignInEmail }
+        - { Name: email_verified, Value: "true" }
+
+  # ---------- The coach's long-term memory ----------
+  CoachMemory:
+    Type: AWS::BedrockAgentCore::Memory
+    Properties:
+      Name: CareerCoachStack
+      Description: Career Coach profiles, progress notes and chat memory
+      EventExpiryDuration: 365
+      MemoryStrategies:
+        - SemanticMemoryStrategy:
+            Name: CareerFacts
+            NamespaceTemplates: ["/facts/{actorId}/"]
+        - UserPreferenceMemoryStrategy:
+            Name: CoachingPreferences
+            NamespaceTemplates: ["/preferences/{actorId}/"]
+        - SummaryMemoryStrategy:
+            Name: SessionSummaries
+            NamespaceTemplates: ["/summaries/{actorId}/{sessionId}/"]
+
+  # ---------- The server ----------
+  CoachRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub "arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore"  # Session Manager, no SSH
+      Policies:
+        - PolicyName: career-coach
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: CallClaude
+                Effect: Allow
+                Action: [bedrock:InvokeModel, bedrock:InvokeModelWithResponseStream]
+                Resource:
+                  - !Sub "arn:${AWS::Partition}:bedrock:${AWS::Region}:${AWS::AccountId}:inference-profile/${BedrockModelId}"
+                  # A US inference profile can serve the request from any US region.
+                  - !Sub "arn:${AWS::Partition}:bedrock:*::foundation-model/*"
+              - Sid: FirstUseSubscribesThroughBedrock
+                Effect: Allow
+                Action: [aws-marketplace:Subscribe, aws-marketplace:ViewSubscriptions]
+                Resource: "*"
+                Condition:
+                  StringEquals: { "aws:CalledViaLast": bedrock.amazonaws.com }
+              - Sid: UseThisStacksMemoryOnly
+                Effect: Allow
+                Action: bedrock-agentcore:*
+                Resource:
+                  - !GetAtt CoachMemory.MemoryArn
+                  - !Sub "${CoachMemory.MemoryArn}/*"
+
+  CoachInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles: [!Ref CoachRole]
+
+  CoachLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        MetadataOptions:
+          HttpTokens: required  # IMDSv2 only
+          HttpPutResponseHopLimit: 1
+        BlockDeviceMappings:
+          - DeviceName: /dev/xvda
+            Ebs: { VolumeSize: 20, VolumeType: gp3, Encrypted: true, DeleteOnTermination: true }
+
+  CoachInstance:
+    Type: AWS::EC2::Instance
+    DependsOn: [PrivateDefaultRoute, PrivateSubnetRoutes]  # the start-up script needs the internet
+    CreationPolicy:
+      ResourceSignal: { Count: 1, Timeout: PT15M }
+    Properties:
+      ImageId: !Ref LatestAmiId
+      InstanceType: !Ref InstanceType
+      SubnetId: !Ref PrivateSubnet
+      SecurityGroupIds: [!Ref CoachSecurityGroup]
+      IamInstanceProfile: !Ref CoachInstanceProfile
+      LaunchTemplate:
+        LaunchTemplateId: !Ref CoachLaunchTemplate
+        Version: !GetAtt CoachLaunchTemplate.LatestVersionNumber
+      Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-coach" }]
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          # Downloads and starts the Career Coach container. Log: /var/log/career-coach-setup.log
+          set -euo pipefail
+          exec > >(tee -a /var/log/career-coach-setup.log) 2>&1
+          dnf install -y aws-cfn-bootstrap docker
+          signal() { /opt/aws/bin/cfn-signal -e "$1" --stack '${AWS::StackName}' --resource CoachInstance --region '${AWS::Region}' || true; }
+          trap 'signal 1' ERR
+          systemctl enable --now docker
+
+          # The image is public on Amazon ECR Public, so no sign-in or IAM permission is needed.
+          for i in $(seq 1 5); do
+            docker pull '${ImageUri}' && break
+            if [ "$i" = 5 ]; then echo "Could not download ${ImageUri}"; signal 1; exit 1; fi
+            sleep 10
+          done
+
+          umask 027
+          cat > /etc/career-coach.env <<'ENV'
+          COACH_AUTH=cognito
+          COACH_COGNITO_POOL_ID=${UserPool}
+          COACH_COGNITO_CLIENT_ID=${UserPoolClient}
+          COACH_MEMORY=agentcore
+          COACH_AGENTCORE_MEMORY_ID=${CoachMemory.MemoryId}
+          COACH_BEDROCK_MODEL=${BedrockModelId}
+          AWS_REGION=${AWS::Region}
+          TAVILY_API_KEY=${TavilyApiKey}
+          ENV
+
+          # --network host keeps the instance role reachable: the metadata service allows one
+          # network hop (IMDSv2, hop limit 1), and a bridged container would be a second hop.
+          cat > /etc/systemd/system/career-coach.service <<'UNIT'
+          [Unit]
+          Description=Career Coach
+          After=docker.service network-online.target
+          Requires=docker.service
+          Wants=network-online.target
+
+          [Service]
+          ExecStartPre=-/usr/bin/docker rm -f career-coach
+          ExecStart=/usr/bin/docker run --rm --name career-coach --network host --env-file /etc/career-coach.env --cap-drop ALL --security-opt no-new-privileges '${ImageUri}'
+          ExecStop=/usr/bin/docker stop career-coach
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+          systemctl daemon-reload
+          systemctl enable --now career-coach
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/api/health > /dev/null; then signal 0; exit 0; fi
+            sleep 5
+          done
+          echo "The coach did not answer on port 8000. See: journalctl -u career-coach"
+          signal 1
+
+  # ---------- The HTTPS link ----------
+  CoachVpcOrigin:
+    Type: AWS::CloudFront::VpcOrigin
+    Properties:
+      VpcOriginEndpointConfig:
+        Name: !Sub "${AWS::StackName}-coach"
+        Arn: !Sub "arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:instance/${CoachInstance}"
+        HTTPPort: 8000
+        OriginProtocolPolicy: http-only  # private connection inside AWS; viewers always use HTTPS
+
+  CoachDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Comment: !Sub "Career Coach (${AWS::StackName})"
+        Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_100
+        Origins:
+          - Id: coach
+            DomainName: !GetAtt CoachInstance.PrivateDnsName
+            VpcOriginConfig:
+              VpcOriginId: !GetAtt CoachVpcOrigin.Id
+              OriginReadTimeout: 60  # chat and profile builds stream for up to ~20 s
+              OriginKeepaliveTimeout: 5
+        DefaultCacheBehavior:
+          TargetOriginId: coach
+          ViewerProtocolPolicy: redirect-to-https
+          AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+          CachedMethods: [GET, HEAD]
+          Compress: false  # keeps streamed replies flowing as they're written
+          CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # managed CachingDisabled
+          OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac  # managed AllViewerExceptHostHeader
+        ViewerCertificate:
+          CloudFrontDefaultCertificate: true
+
+Outputs:
+  CoachUrl:
+    Description: Open this link and sign in with your email and the password AWS emailed you.
+    Value: !Sub "https://${CoachDistribution.DomainName}"
+  SignInEmail:
+    Value: !Ref SignInEmail
+  MemoryId:
+    Value: !GetAtt CoachMemory.MemoryId
+  ServerId:
+    Description: For troubleshooting with Session Manager (journalctl -u career-coach).
+    Value: !Ref CoachInstance

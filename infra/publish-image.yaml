@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: >-
+  Career Coach publisher (deploy once, in the maintainer's account, in us-east-1). Creates the
+  public Amazon ECR Public repository that attendees' stacks download the coach image from, and
+  a role that only this GitHub repository's version-tag builds can use to push to it.
+  Attendees never deploy this stack.
+
+Parameters:
+  GitHubRepository:
+    Type: String
+    Description: The GitHub repository that builds the image, as owner/name.
+    AllowedPattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+  CreateGitHubOidcProvider:
+    Type: String
+    Description: >-
+      Choose false if this account already has the GitHub Actions identity provider
+      (IAM > Identity providers > token.actions.githubusercontent.com). An account can only have one.
+    AllowedValues: ["true", "false"]
+    Default: "true"
+  RepositoryName:
+    Type: String
+    Default: career-coach
+    AllowedPattern: "^[a-z0-9][a-z0-9._/-]{1,200}$"
+
+Rules:
+  EcrPublicLivesInUsEast1:
+    Assertions:
+      - Assert: !Equals [!Ref AWS::Region, us-east-1]
+        AssertDescription: Amazon ECR Public repositories are created in US East (N. Virginia), us-east-1.
+
+Conditions:
+  MakeOidcProvider: !Equals [!Ref CreateGitHubOidcProvider, "true"]
+
+Resources:
+  CoachImageRepository:
+    Type: AWS::ECR::PublicRepository
+    Properties:
+      RepositoryName: !Ref RepositoryName
+      RepositoryCatalogData:
+        AboutText: >-
+          Career Coach workshop app: a FastAPI + Strands Agents backend with its React website,
+          using Claude on Amazon Bedrock and Amazon Bedrock AgentCore Memory.
+        UsageText: >-
+          Deployed by infra/career-coach.yaml from the workshop repository. Runs on linux/arm64.
+        OperatingSystems: [Linux]
+        Architectures: [ARM 64]
+
+  GitHubOidcProvider:
+    Type: AWS::IAM::OIDCProvider
+    Condition: MakeOidcProvider
+    Properties:
+      Url: https://token.actions.githubusercontent.com
+      ClientIdList: [sts.amazonaws.com]
+
+  PublishRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Pushes Career Coach images to ECR Public from version-tag builds of one GitHub repository.
+      MaxSessionDuration: 3600
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Federated: !Sub "arn:${AWS::Partition}:iam::${AWS::AccountId}:oidc-provider/token.actions.githubusercontent.com"
+            Action: sts:AssumeRoleWithWebIdentity
+            Condition:
+              StringEquals:
+                "token.actions.githubusercontent.com:aud": sts.amazonaws.com
+              StringLike:
+                # Only builds of a v* tag, not branches or pull requests
+                "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubRepository}:ref:refs/tags/v*"
+      Policies:
+        - PolicyName: push-coach-image
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: SignInToEcrPublic  # these two have no resource-level scoping
+                Effect: Allow
+                Action: [ecr-public:GetAuthorizationToken, sts:GetServiceBearerToken]
+                Resource: "*"
+              - Sid: PushToThisRepositoryOnly
+                Effect: Allow
+                Action:
+                  - ecr-public:DescribeRepositories
+                  - ecr-public:DescribeImages
+                  - ecr-public:BatchCheckLayerAvailability
+                  - ecr-public:InitiateLayerUpload
+                  - ecr-public:UploadLayerPart
+                  - ecr-public:CompleteLayerUpload
+                  - ecr-public:PutImage
+                Resource: !GetAtt CoachImageRepository.Arn
+
+Outputs:
+  PublishRoleArn:
+    Description: Save as the GitHub repository variable PUBLISH_ROLE_ARN (Settings > Secrets and variables > Actions > Variables).
+    Value: !GetAtt PublishRole.Arn
+  RepositoryArn:
+    Value: !GetAtt CoachImageRepository.Arn
