@@ -10,6 +10,15 @@ Parameters:
     Type: String
     Description: The GitHub repository that builds the image, as owner/name.
     AllowedPattern: "^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$"
+  GitHubSubjectPrefix:
+    Type: String
+    Default: ""
+    Description: >-
+      The start of the subject in the repository's GitHub OIDC tokens. Repositories created after
+      July 15, 2026 use immutable IDs, such as repo:owner@123/name@456. Find it with
+      "gh api repos/OWNER/NAME/actions/oidc/customization/sub" (the sub_claim_prefix field). Leave
+      empty for older repositories, which use repo:owner/name.
+    AllowedPattern: "^(repo:[A-Za-z0-9_.@/-]+)?$"
   CreateGitHubOidcProvider:
     Type: String
     Description: >-
@@ -30,6 +39,7 @@ Rules:
 
 Conditions:
   MakeOidcProvider: !Equals [!Ref CreateGitHubOidcProvider, "true"]
+  UseNameSubject: !Equals [!Ref GitHubSubjectPrefix, ""]
 
 Resources:
   CoachImageRepository:
@@ -69,7 +79,10 @@ Resources:
                 "token.actions.githubusercontent.com:aud": sts.amazonaws.com
               StringLike:
                 # Only builds of a v* tag, not branches or pull requests
-                "token.actions.githubusercontent.com:sub": !Sub "repo:${GitHubRepository}:ref:refs/tags/v*"
+                "token.actions.githubusercontent.com:sub": !If
+                  - UseNameSubject
+                  - !Sub "repo:${GitHubRepository}:ref:refs/tags/v*"
+                  - !Sub "${GitHubSubjectPrefix}:ref:refs/tags/v*"
       Policies:
         - PolicyName: push-coach-image
           PolicyDocument:
