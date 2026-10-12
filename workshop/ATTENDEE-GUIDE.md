@@ -243,6 +243,19 @@ with everything the coach stored in it. CloudFront takes the longest to remove.
 You should see the stack disappear from the list (choose the refresh button now and then). If the status turns to
 `DELETE_FAILED`, choose **Retry delete**.
 
+You can also do this with the teardown script, which deletes the stack, retries once if needed, and then checks
+that nothing billable is left. Open AWS CloudShell (the `>_` icon at the top of the console) in the same region
+and run:
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/lswans/career-coach-aws/main/infra/teardown.sh
+bash teardown.sh
+```
+
+Type `career-coach` when it asks. If either way gets stuck, the
+[teardown guide](https://github.com/lswans/career-coach-aws/blob/main/skills/teardown/SKILL.md) lists the usual
+causes and how to check for leftovers by hand.
+
 ---
 
 ## Troubleshooting

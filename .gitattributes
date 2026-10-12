@@ -1,0 +1,4 @@
+# Shell scripts and the Dockerfile run on Linux, so they always keep LF line endings,
+# even when the repository is checked out on Windows.
+*.sh text eol=lf
+Dockerfile text eol=lf

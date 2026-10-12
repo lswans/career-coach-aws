@@ -42,6 +42,11 @@ jobs:
             npx tsc -p tsconfig.app.json --noEmit
             npx vitest run'
 
+      - name: Teardown script tests
+        run: |
+          bash -n infra/teardown.sh
+          bash infra/tests/test_teardown.sh
+
       - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd  # v6.3.0
         with:
           role-to-assume: ${{ vars.PUBLISH_ROLE_ARN }}
