@@ -15,7 +15,8 @@ A few terms as they come up:
 - **Memory**: what the coach remembers about you. Short-term memory is the current chat. Long-term memory carries
   facts across chats.
 
-`<REPO_URL>` means the GitHub link in the AWS Builder Center post for this workshop.
+The workshop's code and template are in the GitHub repository
+[lswans/career-coach-aws](https://github.com/lswans/career-coach-aws).
 
 ---
 
@@ -39,7 +40,7 @@ You should see a short reply. If you see an error, the table in step 2 of the pr
 
 ### Step 3. Download the template
 
-Open `<REPO_URL>/blob/main/infra/career-coach.yaml`, choose **Download raw file** (the download arrow), and save it.
+Open [infra/career-coach.yaml](https://github.com/lswans/career-coach-aws/blob/main/infra/career-coach.yaml), choose **Download raw file** (the download arrow), and save it.
 
 This one file describes everything the coach needs. You'll see each piece appear in Step 9.
 
@@ -110,9 +111,9 @@ You should see the first setup step, **Dump your docs**, and the header pill rea
 
 Download these three files from the repository, the same way as Step 3:
 
-- `<REPO_URL>/blob/main/sample-data/jordan-resume.md`
-- `<REPO_URL>/blob/main/sample-data/jordan-achievements.txt`
-- `<REPO_URL>/blob/main/sample-data/jordan-goals.txt`
+- [sample-data/jordan-resume.md](https://github.com/lswans/career-coach-aws/blob/main/sample-data/jordan-resume.md)
+- [sample-data/jordan-achievements.txt](https://github.com/lswans/career-coach-aws/blob/main/sample-data/jordan-achievements.txt)
+- [sample-data/jordan-goals.txt](https://github.com/lswans/career-coach-aws/blob/main/sample-data/jordan-goals.txt)
 
 They describe a fictional student named Jordan Rivera. You can use your own resume instead: Claude reads it on
 Amazon Bedrock in your own AWS account, and Anthropic has no access to what you send there
