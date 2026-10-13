@@ -36,7 +36,7 @@ You should see a short reply. If you see an error, the table in step 2 of the pr
 
 ---
 
-## Part 1: Deploy your coach with one stack (5 min, then about 15 min of waiting)
+## Part 1: Deploy your coach with one stack (5 min, then about 20 min of waiting)
 
 ### Step 3. Download the template
 
@@ -75,19 +75,20 @@ You should see the stack with the status `CREATE_IN_PROGRESS`.
 
 ### Step 9. Watch it build
 
-Open the **Events** tab and refresh it now and then. In about 15 minutes the stack creates:
+Open the **Events** tab and refresh it now and then. In about 20 minutes the stack creates:
 
 - a private network with a NAT gateway, so the server can reach AWS and the internet but nothing can reach it;
 - a sign-in for your email (**Amazon Cognito**) and an email with your temporary password;
 - the coach's long-term memory (**Amazon Bedrock AgentCore Memory**);
-- a small server (**Amazon EC2**) that downloads the coach from the repository, builds it and starts it;
+- a small server (**Amazon EC2**) that downloads the coach's ready-made container and starts it;
 - an HTTPS link (**Amazon CloudFront**) that is the only way in to the server.
 
-Most of the wait is the server installing the coach and CloudFront starting up. The presenter walks through each
-piece while you wait.
+Most of the wait is CloudFront starting up, which takes about 12 minutes on its own. The presenter walks through
+each piece while you wait.
 
-You should see the stack status turn to `CREATE_COMPLETE`, and an email titled **Your Career Coach sign-in** in your
-inbox. If the status turns to `ROLLBACK_IN_PROGRESS` instead, see Troubleshooting at the end.
+You should see the stack status turn to `CREATE_COMPLETE`. The email titled **Your Career Coach sign-in** usually
+arrives earlier, while the stack is still building: keep it, but wait for `CREATE_COMPLETE` before you use it. If
+the status turns to `ROLLBACK_IN_PROGRESS` instead, see Troubleshooting at the end.
 
 ---
 
@@ -95,7 +96,10 @@ inbox. If the status turns to `ROLLBACK_IN_PROGRESS` instead, see Troubleshootin
 
 ### Step 10. Open your coach
 
-Open the **Outputs** tab of the stack and choose the **CoachUrl** link.
+Your coach's link is on the stack's **Outputs** tab, not in the email. In CloudFormation, select the
+`career-coach` stack, open the **Outputs** tab (next to **Events** and **Resources**), and choose the link in the
+**CoachUrl** row. It looks like `https://d1234abcd5678.cloudfront.net`. Bookmark it: it's the only address for your
+coach.
 
 You should see the Career Coach page with **Sign in to your coach**.
 
