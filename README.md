@@ -6,6 +6,8 @@ coaches you in a chat that remembers your progress through Amazon Bedrock AgentC
 Agents and a React site. One CloudFormation template creates everything; developers can also run it on a laptop,
 including on a free open-source model (Qwen3, through Ollama) with no AWS account.
 
+<img width="2117" height="653" alt="image" src="https://github.com/user-attachments/assets/5c7f2576-a5a1-4ae7-88ce-b657dd7bfbef" />
+
 It was built for a Grace Hopper Celebration workshop.
 
 | You want to | Read |
