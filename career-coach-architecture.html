@@ -1,0 +1,1688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="generator" content="aws-architecture-diagram skill (viewer v1)">
+<title>AWS Architecture Diagram</title>
+<style>
+  :root {
+    --bg: #f2f3f3; --panel: #ffffff; --ink: #16191f; --muted: #5f6b7a; --line: #d5dbe1;
+    --accent: #0972d3; --bar: #232f3e;
+    font-family: "Amazon Ember", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+  body { display: flex; flex-direction: column; }
+  #topbar { display: flex; align-items: center; gap: 14px; padding: 8px 14px; background: var(--bar); color: #fff; flex-wrap: wrap; }
+  #topbar .title { flex: 1; min-width: 220px; }
+  #topbar h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: .1px; }
+  #topbar .sub { font-size: 12px; color: #c6ccd3; margin-top: 2px; }
+  #topbar .tools { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  #topbar input[type=search] { width: 230px; padding: 6px 10px; border-radius: 6px; border: 1px solid #5f6b7a; background: #16191f; color: #fff; font: inherit; font-size: 13px; }
+  button, .menu > summary { font: inherit; font-size: 13px; padding: 6px 11px; border-radius: 6px; border: 1px solid #5f6b7a; background: #2f3b4c; color: #fff; cursor: pointer; list-style: none; user-select: none; }
+  button:hover, .menu > summary:hover { background: #3c4a5e; }
+  .menu { position: relative; }
+  .menu > summary::-webkit-details-marker { display: none; }
+  .menu .pop { position: absolute; right: 0; top: calc(100% + 6px); z-index: 20; background: #fff; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 10px 12px; min-width: 240px; box-shadow: 0 8px 24px rgba(0,0,0,.18); font-size: 13px; }
+  .menu .pop h4 { margin: 8px 0 4px; font-size: 11px; text-transform: uppercase; color: var(--muted); letter-spacing: .5px; }
+  .menu .pop h4:first-child { margin-top: 0; }
+  .menu .pop label { display: flex; gap: 8px; align-items: center; padding: 3px 0; cursor: pointer; }
+  .menu .pop button { display: block; width: 100%; margin: 4px 0; background: #f2f3f3; color: var(--ink); border-color: var(--line); text-align: left; }
+  .menu .pop button:hover { background: #e9ebed; }
+  main { flex: 1; display: flex; min-height: 0; }
+  #canvas { flex: 1; position: relative; overflow: hidden; background-color: #fff; background-image: radial-gradient(#e1e5ea 1px, transparent 1px); background-size: 22px 22px; }
+  #diagram { width: 100%; height: 100%; display: block; cursor: grab; user-select: none; touch-action: none; }
+  #diagram.panning { cursor: grabbing; }
+  #panel { width: 390px; max-width: 45vw; overflow: auto; border-left: 1px solid var(--line); background: var(--panel); padding: 16px 18px 40px; font-size: 13.5px; line-height: 1.45; }
+  body.panel-hidden #panel { display: none; }
+  #panel h2 { font-size: 17px; margin: 0 0 4px; }
+  #panel h3 { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin: 18px 0 6px; }
+  #panel .muted { color: var(--muted); }
+  #panel table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+  #panel td { border-top: 1px solid #eef0f2; padding: 4px 4px; vertical-align: top; word-break: break-word; }
+  #panel td:first-child { color: var(--muted); width: 38%; }
+  #panel code { font-family: ui-monospace, Consolas, Menlo, monospace; font-size: 12px; background: #f4f5f6; padding: 1px 4px; border-radius: 4px; word-break: break-all; }
+  #panel a { color: var(--accent); text-decoration: none; cursor: pointer; }
+  #panel a:hover { text-decoration: underline; }
+  #panel ul { margin: 4px 0; padding-left: 18px; }
+  #panel li { margin: 2px 0; }
+  .chip-img { width: 22px; height: 22px; margin-right: 6px; vertical-align: middle; border-radius: 3px; }
+  .chip { display: inline-flex; align-items: center; justify-content: center; min-width: 22px; height: 22px; padding: 0 5px; border-radius: 5px; color: #fff; font-size: 10.5px; font-weight: 700; margin-right: 6px; vertical-align: middle; }
+  .legend-row { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
+  .legend-row .count { margin-left: auto; color: var(--muted); font-size: 12px; }
+  .pill { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 11.5px; font-weight: 600; color: #fff; }
+  .crumbs { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
+  .notes { background: #f1f8ff; border-left: 3px solid var(--accent); padding: 6px 10px; border-radius: 4px; white-space: pre-wrap; }
+  #fatal { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; padding: 40px; text-align: center; color: var(--muted); font-size: 15px; }
+  #hint { position: absolute; left: 12px; bottom: 10px; font-size: 11.5px; color: var(--muted); background: rgba(255,255,255,.85); padding: 3px 8px; border-radius: 6px; pointer-events: none; }
+  /* diagram interaction states (visual styling of shapes lives in SVG attributes so exports stay self-contained) */
+  .node, .grp-head { cursor: pointer; }
+  .node:hover .icon { filter: brightness(1.08) drop-shadow(0 2px 4px rgba(0,0,0,.25)); }
+  .dim { opacity: .14; }
+  .node.sel .icon, .node.sel .ring { stroke: #0972d3; stroke-width: 3.5; }
+  .edge { cursor: pointer; }
+  .edge.hl .line { stroke-width: 3 !important; }
+  .edge.sel .line { stroke: #0972d3 !important; stroke-width: 3.2 !important; }
+  .grp.sel > rect.body { stroke-width: 3 !important; }
+  @media print { #topbar, #panel, #hint { display: none !important; } }
+</style>
+</head>
+<body>
+<header id="topbar">
+  <div class="title"><h1 id="title">AWS Architecture Diagram</h1><div class="sub" id="subtitle"></div></div>
+  <div class="tools">
+    <input type="search" id="search" placeholder="Search resources  ( / )" autocomplete="off">
+    <button id="btn-fit" title="Fit diagram to window (F)">Fit</button>
+    <details class="menu" id="menu-view"><summary>View ▾</summary><div class="pop" id="view-pop"></div></details>
+    <details class="menu" id="menu-export"><summary>Export ▾</summary><div class="pop">
+      <h4>Download</h4>
+      <button id="btn-svg">SVG image</button>
+      <button id="btn-png">PNG image (2×)</button>
+      <button id="btn-json">Diagram model (JSON)</button>
+      <button id="btn-html">This page with current layout (HTML)</button>
+    </div></details>
+    <button id="btn-panel" title="Toggle details panel">Panel</button>
+  </div>
+</header>
+<main>
+  <div id="canvas">
+    <svg id="diagram" xmlns="http://www.w3.org/2000/svg" aria-label="Architecture diagram"></svg>
+    <div id="fatal"></div>
+    <div id="hint">Drag to pan · wheel to zoom · drag a resource or group header to move it · double-click a group to collapse/expand</div>
+  </div>
+  <aside id="panel"></aside>
+</main>
+
+<script type="application/json" id="aws-service-catalog">
+{
+  "categories": {
+    "compute":     {"name": "Compute", "color": "#ED7100"},
+    "containers":  {"name": "Containers", "color": "#ED7100"},
+    "storage":     {"name": "Storage", "color": "#7AA116"},
+    "database":    {"name": "Database", "color": "#C925D1"},
+    "networking":  {"name": "Networking & content delivery", "color": "#8C4FFF"},
+    "integration": {"name": "Application integration", "color": "#E7157B"},
+    "security":    {"name": "Security, identity & compliance", "color": "#DD344C"},
+    "management":  {"name": "Management & governance", "color": "#E7157B"},
+    "analytics":   {"name": "Analytics", "color": "#8C4FFF"},
+    "ml":          {"name": "AI / machine learning", "color": "#01A88D"},
+    "frontend":    {"name": "Front-end web & mobile", "color": "#DD344C"},
+    "devtools":    {"name": "Developer tools", "color": "#C925D1"},
+    "iot":         {"name": "Internet of Things", "color": "#7AA116"},
+    "general":     {"name": "General / other", "color": "#5A6B86"},
+    "external":    {"name": "External / non-AWS", "color": "#232F3E"}
+  },
+  "services": {
+    "lambda": {"name": "AWS Lambda", "cat": "compute", "glyph": "λ"},
+    "ec2": {"name": "Amazon EC2", "cat": "compute", "glyph": "EC2"},
+    "autoscaling": {"name": "EC2 Auto Scaling", "cat": "compute", "glyph": "ASG"},
+    "batch": {"name": "AWS Batch", "cat": "compute", "glyph": "BAT"},
+    "apprunner": {"name": "AWS App Runner", "cat": "compute", "glyph": "AR"},
+    "elasticbeanstalk": {"name": "AWS Elastic Beanstalk", "cat": "compute", "glyph": "EBN"},
+    "lightsail": {"name": "Amazon Lightsail", "cat": "compute", "glyph": "LS"},
+    "ecs": {"name": "Amazon ECS", "cat": "containers", "glyph": "ECS"},
+    "fargate": {"name": "AWS Fargate", "cat": "containers", "glyph": "FG"},
+    "eks": {"name": "Amazon EKS", "cat": "containers", "glyph": "EKS"},
+    "ecr": {"name": "Amazon ECR", "cat": "containers", "glyph": "ECR"},
+    "s3": {"name": "Amazon S3", "cat": "storage", "glyph": "S3"},
+    "efs": {"name": "Amazon EFS", "cat": "storage", "glyph": "EFS"},
+    "ebs": {"name": "Amazon EBS", "cat": "storage", "glyph": "EBS"},
+    "fsx": {"name": "Amazon FSx", "cat": "storage", "glyph": "FSx"},
+    "backup": {"name": "AWS Backup", "cat": "storage", "glyph": "BKP"},
+    "datasync": {"name": "AWS DataSync", "cat": "storage", "glyph": "DS"},
+    "transfer": {"name": "AWS Transfer Family", "cat": "storage", "glyph": "SFTP"},
+    "dynamodb": {"name": "Amazon DynamoDB", "cat": "database", "glyph": "DDB"},
+    "rds": {"name": "Amazon RDS", "cat": "database", "glyph": "RDS"},
+    "aurora": {"name": "Amazon Aurora", "cat": "database", "glyph": "AUR"},
+    "dsql": {"name": "Amazon Aurora DSQL", "cat": "database", "glyph": "DSQL"},
+    "elasticache": {"name": "Amazon ElastiCache", "cat": "database", "glyph": "ELC"},
+    "memorydb": {"name": "Amazon MemoryDB", "cat": "database", "glyph": "MDB"},
+    "documentdb": {"name": "Amazon DocumentDB", "cat": "database", "glyph": "DOC"},
+    "neptune": {"name": "Amazon Neptune", "cat": "database", "glyph": "NEP"},
+    "keyspaces": {"name": "Amazon Keyspaces", "cat": "database", "glyph": "KS"},
+    "timestream": {"name": "Amazon Timestream", "cat": "database", "glyph": "TS"},
+    "redshift": {"name": "Amazon Redshift", "cat": "analytics", "glyph": "RS"},
+    "opensearch": {"name": "Amazon OpenSearch Service", "cat": "analytics", "glyph": "OS"},
+    "athena": {"name": "Amazon Athena", "cat": "analytics", "glyph": "ATH"},
+    "glue": {"name": "AWS Glue", "cat": "analytics", "glyph": "GLU"},
+    "emr": {"name": "Amazon EMR", "cat": "analytics", "glyph": "EMR"},
+    "kinesis": {"name": "Amazon Kinesis Data Streams", "cat": "analytics", "glyph": "KDS"},
+    "firehose": {"name": "Amazon Data Firehose", "cat": "analytics", "glyph": "FH"},
+    "msk": {"name": "Amazon MSK", "cat": "analytics", "glyph": "MSK"},
+    "quicksight": {"name": "Amazon QuickSight", "cat": "analytics", "glyph": "QS"},
+    "lakeformation": {"name": "AWS Lake Formation", "cat": "analytics", "glyph": "LF"},
+    "vpc": {"name": "Amazon VPC", "cat": "networking", "glyph": "VPC"},
+    "cloudfront": {"name": "Amazon CloudFront", "cat": "networking", "glyph": "CF"},
+    "route53": {"name": "Amazon Route 53", "cat": "networking", "glyph": "R53"},
+    "apigateway": {"name": "Amazon API Gateway", "cat": "networking", "glyph": "API"},
+    "elb": {"name": "Elastic Load Balancing", "cat": "networking", "glyph": "ELB"},
+    "alb": {"name": "Application Load Balancer", "cat": "networking", "glyph": "ALB"},
+    "nlb": {"name": "Network Load Balancer", "cat": "networking", "glyph": "NLB"},
+    "natgateway": {"name": "NAT gateway", "cat": "networking", "glyph": "NAT"},
+    "igw": {"name": "Internet gateway", "cat": "networking", "glyph": "IGW"},
+    "vpce": {"name": "VPC endpoint", "cat": "networking", "glyph": "VPCE"},
+    "transitgateway": {"name": "AWS Transit Gateway", "cat": "networking", "glyph": "TGW"},
+    "globalaccelerator": {"name": "AWS Global Accelerator", "cat": "networking", "glyph": "GA"},
+    "directconnect": {"name": "AWS Direct Connect", "cat": "networking", "glyph": "DX"},
+    "vpn": {"name": "AWS Site-to-Site VPN", "cat": "networking", "glyph": "VPN"},
+    "cloudmap": {"name": "AWS Cloud Map", "cat": "networking", "glyph": "MAP"},
+    "sqs": {"name": "Amazon SQS", "cat": "integration", "glyph": "SQS"},
+    "sns": {"name": "Amazon SNS", "cat": "integration", "glyph": "SNS"},
+    "eventbridge": {"name": "Amazon EventBridge", "cat": "integration", "glyph": "EB"},
+    "scheduler": {"name": "EventBridge Scheduler", "cat": "integration", "glyph": "SCH"},
+    "pipes": {"name": "EventBridge Pipes", "cat": "integration", "glyph": "PIPE"},
+    "stepfunctions": {"name": "AWS Step Functions", "cat": "integration", "glyph": "SFN"},
+    "mq": {"name": "Amazon MQ", "cat": "integration", "glyph": "MQ"},
+    "appsync": {"name": "AWS AppSync", "cat": "integration", "glyph": "GQL"},
+    "ses": {"name": "Amazon SES", "cat": "integration", "glyph": "SES"},
+    "iam": {"name": "AWS IAM", "cat": "security", "glyph": "IAM"},
+    "cognito": {"name": "Amazon Cognito", "cat": "security", "glyph": "COG"},
+    "kms": {"name": "AWS KMS", "cat": "security", "glyph": "KMS"},
+    "secretsmanager": {"name": "AWS Secrets Manager", "cat": "security", "glyph": "SEC"},
+    "acm": {"name": "AWS Certificate Manager", "cat": "security", "glyph": "ACM"},
+    "waf": {"name": "AWS WAF", "cat": "security", "glyph": "WAF"},
+    "shield": {"name": "AWS Shield", "cat": "security", "glyph": "SHD"},
+    "guardduty": {"name": "Amazon GuardDuty", "cat": "security", "glyph": "GD"},
+    "securityhub": {"name": "AWS Security Hub", "cat": "security", "glyph": "SH"},
+    "cloudwatch": {"name": "Amazon CloudWatch", "cat": "management", "glyph": "CW"},
+    "logs": {"name": "Amazon CloudWatch Logs", "cat": "management", "glyph": "LOG"},
+    "cloudtrail": {"name": "AWS CloudTrail", "cat": "management", "glyph": "CT"},
+    "ssm": {"name": "AWS Systems Manager", "cat": "management", "glyph": "SSM"},
+    "config": {"name": "AWS Config", "cat": "management", "glyph": "CFG"},
+    "cloudformation": {"name": "AWS CloudFormation", "cat": "management", "glyph": "CFN"},
+    "organizations": {"name": "AWS Organizations", "cat": "management", "glyph": "ORG"},
+    "xray": {"name": "AWS X-Ray", "cat": "devtools", "glyph": "XR"},
+    "codepipeline": {"name": "AWS CodePipeline", "cat": "devtools", "glyph": "CP"},
+    "codebuild": {"name": "AWS CodeBuild", "cat": "devtools", "glyph": "CB"},
+    "codedeploy": {"name": "AWS CodeDeploy", "cat": "devtools", "glyph": "CD"},
+    "codecommit": {"name": "AWS CodeCommit", "cat": "devtools", "glyph": "CC"},
+    "codeartifact": {"name": "AWS CodeArtifact", "cat": "devtools", "glyph": "CA"},
+    "amplify": {"name": "AWS Amplify", "cat": "frontend", "glyph": "AMP"},
+    "location": {"name": "Amazon Location Service", "cat": "frontend", "glyph": "LOC"},
+    "sagemaker": {"name": "Amazon SageMaker AI", "cat": "ml", "glyph": "SM"},
+    "bedrock": {"name": "Amazon Bedrock", "cat": "ml", "glyph": "BR"},
+    "bedrock-agentcore": {"name": "Amazon Bedrock AgentCore", "cat": "ml", "glyph": "AGC"},
+    "rekognition": {"name": "Amazon Rekognition", "cat": "ml", "glyph": "REK"},
+    "comprehend": {"name": "Amazon Comprehend", "cat": "ml", "glyph": "CMP"},
+    "textract": {"name": "Amazon Textract", "cat": "ml", "glyph": "TXT"},
+    "transcribe": {"name": "Amazon Transcribe", "cat": "ml", "glyph": "TRN"},
+    "polly": {"name": "Amazon Polly", "cat": "ml", "glyph": "POL"},
+    "lex": {"name": "Amazon Lex", "cat": "ml", "glyph": "LEX"},
+    "iot": {"name": "AWS IoT Core", "cat": "iot", "glyph": "IoT"},
+    "users": {"name": "Users", "cat": "external", "glyph": "USR"},
+    "client": {"name": "Client application", "cat": "external", "glyph": "APP"},
+    "mobile": {"name": "Mobile client", "cat": "external", "glyph": "MOB"},
+    "internet": {"name": "Internet", "cat": "external", "glyph": "WWW"},
+    "onprem": {"name": "On-premises / data center", "cat": "external", "glyph": "DC"},
+    "external": {"name": "External system", "cat": "external", "glyph": "EXT"},
+    "generic": {"name": "Resource", "cat": "general", "glyph": "?"}
+  }
+}
+</script>
+
+<!-- Official AWS Architecture Icons for the services this diagram uses, filled in by `diagram.py render`
+     from assets/aws-icons.json. Empty -> the viewer draws text glyphs. -->
+<script type="application/json" id="aws-service-icons">{"groups":{"account":"\u003csvg width=\"40px\" height=\"40px\" viewBox=\"0 0 40 40\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003crect fill=\"#E7157B\" x=\"0\" y=\"0\" width=\"40\" height=\"40\"/>\u003cpath d=\"M24.5,22 C26.43,22 28,23.57 28,25.5 C28,27.43 26.43,29 24.5,29 C22.57,29 21,27.43 21,25.5 C21,23.57 22.57,22 24.5,22 L24.5,22 Z M24.5,30 C26.981,30 29,27.981 29,25.5 C29,23.019 26.981,21 24.5,21 C22.019,21 20,23.019 20,25.5 C20,27.981 22.019,30 24.5,30 L24.5,30 Z M26.023,10.88 L29.084,17 L22.963,17 L26.023,10.88 Z M22.154,18 L29.893,18 C30.065,18 30.227,17.91 30.318,17.763 C30.409,17.615 30.417,17.432 30.34,17.276 L26.471,9.538 C26.301,9.2 25.746,9.2 25.576,9.538 L21.707,17.276 C21.63,17.432 21.638,17.615 21.729,17.763 C21.82,17.91 21.981,18 22.154,18 L22.154,18 Z M11,23 L18,23 L18,16 L11,16 L11,23 Z M10.5,24 L18.5,24 C18.776,24 19,23.776 19,23.5 L19,15.5 C19,15.224 18.776,15 18.5,15 L10.5,15 C10.224,15 10,15.224 10,15.5 L10,23.5 C10,23.776 10.224,24 10.5,24 L10.5,24 Z M8,32 L32,32 L32,8 L8,8 L8,32 Z M32.5,7 L7.5,7 C7.224,7 7,7.224 7,7.5 L7,32.5 C7,32.776 7.224,33 7.5,33 L32.5,33 C32.776,33 33,32.776 33,32.5 L33,7.5 C33,7.224 32.776,7 32.5,7 L32.5,7 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>","aws-cloud":"\u003csvg width=\"40px\" height=\"40px\" viewBox=\"0 0 40 40\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003crect fill=\"#242F3E\" x=\"0\" y=\"0\" width=\"40\" height=\"40\"/>\u003cpath d=\"M32.6982,23.9008 C33.0592,24.3698 32.2982,26.2998 31.9572,27.1638 C31.8532,27.4258 32.0752,27.5288 32.3072,27.3318 C33.8202,26.0478 34.2122,23.3568 33.9012,22.9688 C33.5942,22.5828 30.9502,22.2518 29.3382,23.4008 C29.0892,23.5778 29.1322,23.8218 29.4072,23.7898 C30.3152,23.6778 32.3382,23.4328 32.6982,23.9008 L32.6982,23.9008 Z M31.8562,25.9098 C32.3742,25.5318 31.9302,24.9688 31.4022,25.1898 C27.8892,26.6538 24.0752,27.3628 20.6022,27.3628 C15.4592,27.3628 10.4752,25.9738 6.4462,23.6678 C6.0942,23.4658 5.8332,23.8228 6.1272,24.0818 C9.8602,27.3978 14.7962,29.3908 20.2742,29.3908 C24.1842,29.3908 28.7252,28.1828 31.8562,25.9098 L31.8562,25.9098 Z M29.7122,20.6948 C29.2142,20.6948 28.7272,20.6418 28.2532,20.5338 C27.7772,20.4248 27.4132,20.3018 27.1602,20.1608 C27.0052,20.0768 26.9082,19.9888 26.8692,19.9028 C26.8312,19.8148 26.8112,19.7288 26.8112,19.6428 L26.8112,19.1738 C26.8112,18.9798 26.8842,18.8808 27.0272,18.8808 C27.0822,18.8808 27.1402,18.8938 27.2002,18.9138 C27.2612,18.9368 27.3412,18.9688 27.4412,19.0118 C27.7612,19.1528 28.1082,19.2598 28.4852,19.3358 C28.8612,19.4108 29.2362,19.4488 29.6112,19.4488 C30.2082,19.4488 30.6692,19.3468 30.9952,19.1408 C31.3222,18.9368 31.4842,18.6458 31.4842,18.2678 C31.4842,18.0078 31.3992,17.7928 31.2272,17.6188 C31.0562,17.4448 30.7382,17.2858 30.2752,17.1338 L28.9002,16.7128 C28.2032,16.4968 27.6982,16.1838 27.3832,15.7748 C27.0682,15.3628 26.9112,14.9158 26.9112,14.4278 C26.9112,14.0408 26.9962,13.6988 27.1692,13.4008 C27.3392,13.1038 27.5642,12.8508 27.8452,12.6398 C28.1302,12.4298 28.4592,12.2718 28.8342,12.1618 C29.2082,12.0548 29.6062,11.9998 30.0262,11.9998 C30.2362,11.9998 30.4492,12.0138 30.6662,12.0408 C30.8812,12.0668 31.0852,12.1028 31.2782,12.1458 C31.4712,12.1908 31.6512,12.2388 31.8162,12.2918 C31.9822,12.3468 32.1142,12.4008 32.2152,12.4538 C32.3462,12.5288 32.4392,12.6048 32.4962,12.6808 C32.5512,12.7558 32.5792,12.8578 32.5792,12.9888 L32.5792,13.4248 C32.5792,13.6198 32.5072,13.7158 32.3622,13.7158 C32.2852,13.7158 32.1652,13.6798 31.9982,13.6038 C31.4582,13.3648 30.8482,13.2478 30.1772,13.2478 C29.6352,13.2478 29.2142,13.3338 28.9162,13.5058 C28.6172,13.6798 28.4682,13.9548 28.4682,14.3328 C28.4682,14.5908 28.5622,14.8098 28.7512,14.9878 C28.9392,15.1658 29.2862,15.3358 29.7952,15.4988 L31.1372,15.9208 C31.8222,16.1348 32.3112,16.4328 32.6032,16.8088 C32.8972,17.1878 33.0442,17.6188 33.0442,18.1038 C33.0442,18.5048 32.9612,18.8638 32.7942,19.1818 C32.6282,19.5008 32.3992,19.7718 32.1052,19.9988 C31.8132,20.2258 31.4632,20.3978 31.0542,20.5168 C30.6442,20.6368 30.1972,20.6948 29.7122,20.6948 L29.7122,20.6948 Z M17.5472,20.4508 C17.3812,20.4508 17.2602,20.4238 17.1822,20.3638 C17.1042,20.3028 17.0382,20.1828 16.9832,19.9988 L14.7612,12.8418 C14.7082,12.6578 14.6792,12.5348 14.6792,12.4708 C14.6792,12.3198 14.7572,12.2438 14.9122,12.2438 L15.8392,12.2438 C16.0162,12.2438 16.1402,12.2738 16.2132,12.3338 C16.2842,12.3918 16.3472,12.5118 16.4022,12.6978 L17.9932,18.8178 L19.4702,12.6978 C19.5142,12.5118 19.5742,12.3918 19.6512,12.3338 C19.7282,12.2738 19.8552,12.2438 20.0312,12.2438 L20.7962,12.2438 C20.9712,12.2438 21.0982,12.2738 21.1762,12.3338 C21.2532,12.3918 21.3142,12.5118 21.3582,12.6978 L22.8512,18.8988 L24.4912,12.6978 C24.5462,12.5118 24.6092,12.3918 24.6812,12.3338 C24.7542,12.2738 24.8772,12.2438 25.0542,12.2438 L25.9322,12.2438 C26.0882,12.2438 26.1652,12.3198 26.1652,12.4708 C26.1652,12.5118 26.1582,12.5618 26.1492,12.6148 C26.1362,12.6708 26.1162,12.7458 26.0812,12.8418 L23.7952,19.9988 C23.7402,20.1828 23.6732,20.3028 23.5952,20.3638 C23.5182,20.4238 23.3962,20.4508 23.2312,20.4508 L22.4182,20.4508 C22.2422,20.4508 22.1152,20.4208 22.0382,20.3568 C21.9612,20.2918 21.9002,20.1658 21.8562,19.9838 L20.3802,14.0238 L18.9232,19.9838 C18.8792,20.1658 18.8172,20.2918 18.7402,20.3568 C18.6622,20.4208 18.5362,20.4508 18.3592,20.4508 L17.5472,20.4508 Z M9.9392,19.4488 C10.2502,19.4488 10.5752,19.3918 10.9182,19.2788 C11.2602,19.1648 11.5582,18.9688 11.8122,18.6868 C11.9682,18.5148 12.0742,18.3178 12.1362,18.0958 C12.1962,17.8758 12.2252,17.6088 12.2252,17.2948 L12.2252,16.9068 C11.9512,16.8418 11.6612,16.7908 11.3562,16.7528 C11.0522,16.7158 10.7572,16.6958 10.4692,16.6958 C9.8402,16.6958 9.3692,16.8198 9.0612,17.0688 C8.7522,17.3168 8.5962,17.6718 8.5962,18.1388 C8.5962,18.5698 8.7132,18.8948 8.9452,19.1168 C9.1772,19.3388 9.5092,19.4488 9.9392,19.4488 L9.9392,19.4488 Z M13.7852,18.0408 C13.7852,18.3858 13.8202,18.6598 13.8922,18.8658 C13.9652,19.0718 14.0672,19.2938 14.1992,19.5298 C14.2432,19.6058 14.2652,19.6758 14.2652,19.7388 C14.2652,19.8378 14.2042,19.9298 14.0832,20.0148 L13.4862,20.4048 C13.3982,20.4578 13.3152,20.4858 13.2382,20.4858 C13.1372,20.4858 13.0442,20.4428 12.9562,20.3568 C12.8222,20.2258 12.7102,20.0838 12.6172,19.9268 C12.5212,19.7708 12.4252,19.5878 12.3262,19.3828 C11.5852,20.2358 10.6582,20.6628 9.5422,20.6628 C8.7462,20.6628 8.1162,20.4428 7.6512,19.9988 C7.1882,19.5568 6.9562,18.9628 6.9562,18.2188 C6.9562,17.4318 7.2432,16.7958 7.8192,16.3158 C8.3922,15.8358 9.1672,15.5948 10.1382,15.5948 C10.4592,15.5948 10.7932,15.6198 11.1412,15.6678 C11.4882,15.7158 11.8512,15.7848 12.2252,15.8708 L12.2252,15.1918 C12.2252,14.4898 12.0782,13.9958 11.7792,13.7088 C11.4812,13.4228 10.9682,13.2808 10.2392,13.2808 C9.9062,13.2808 9.5662,13.3198 9.2182,13.4008 C8.8712,13.4818 8.5302,13.5868 8.1992,13.7158 C8.0442,13.7808 7.9332,13.8218 7.8682,13.8378 C7.8022,13.8538 7.7522,13.8618 7.7192,13.8618 C7.5872,13.8618 7.5192,13.7658 7.5192,13.5698 L7.5192,13.1178 C7.5192,12.9658 7.5432,12.8578 7.5872,12.7948 C7.6312,12.7288 7.7192,12.6638 7.8522,12.5998 C8.1832,12.4368 8.5812,12.2968 9.0442,12.1788 C9.5092,12.0598 10.0002,11.9998 10.5202,11.9998 C11.6462,11.9998 12.4722,12.2528 12.9972,12.7528 C13.5212,13.2548 13.7852,14.0128 13.7852,15.0278 L13.7852,18.0408 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>","region":"\u003csvg width=\"40px\" height=\"40px\" viewBox=\"0 0 40 40\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003crect fill=\"#00A4A6\" x=\"0\" y=\"0\" width=\"40\" height=\"40\"/>\u003cpath d=\"M14,20.026 L14,11.026 L29.293,11.026 L25.146,15.172 C24.951,15.368 24.951,15.684 25.146,15.88 L29.293,20.026 L14,20.026 Z M26.207,15.526 L30.854,10.88 C30.996,10.736 31.039,10.522 30.962,10.335 C30.885,10.148 30.702,10.026 30.5,10.026 L14,10.026 L14,8.97 C14.596,8.76 15.026,8.198 15.026,7.531 C15.026,6.687 14.34,6 13.495,6 C12.65,6 11.963,6.687 11.963,7.531 C11.963,8.201 12.398,8.766 13,8.973 L13,33.026 L10,33.026 L10,34.026 L17,34.026 L17,33.026 L14,33.026 L14,21.026 L30.5,21.026 C30.702,21.026 30.885,20.904 30.962,20.717 C31.039,20.53 30.996,20.316 30.854,20.172 L26.207,15.526 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>","subnet-private":"\u003csvg width=\"40px\" height=\"40px\" viewBox=\"0 0 40 40\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003crect fill=\"#00A4A6\" x=\"0\" y=\"0\" width=\"40\" height=\"40\"/>\u003cpath d=\"M19.536,22.049 C20.642,22.049 21.542,22.948 21.542,24.054 C21.542,25.16 20.642,26.06 19.536,26.06 C18.43,26.06 17.53,25.16 17.53,24.054 C17.53,22.948 18.43,22.049 19.536,22.049 L19.536,22.049 Z M19.012,27.007 L19.012,30.501 L20.012,30.501 L20.012,27.012 C21.442,26.782 22.542,25.549 22.542,24.054 C22.542,22.397 21.193,21.049 19.536,21.049 C17.879,21.049 16.53,22.397 16.53,24.054 C16.53,25.532 17.604,26.757 19.012,27.007 L19.012,27.007 Z M10,33.014 L29.012,33.014 L29.012,18 L10,18 L10,33.014 Z M14.046,12.484 C14.046,9.46 16.506,7 19.529,7 C22.553,7 25.012,9.46 25.012,12.484 L25.012,17 L14.046,17 L14.046,12.484 Z M29.512,17 L26.012,17 L26.012,12.484 C26.012,8.908 23.103,6 19.529,6 C15.954,6 13.046,8.908 13.046,12.484 L13.046,17 L9.5,17 C9.223,17 9,17.224 9,17.5 L9,33.514 C9,33.79 9.223,34.014 9.5,34.014 L29.512,34.014 C29.788,34.014 30.012,33.79 30.012,33.514 L30.012,17.5 C30.012,17.224 29.788,17 29.512,17 L29.512,17 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>","subnet-public":"\u003csvg width=\"40px\" height=\"40px\" viewBox=\"0 0 40 40\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003crect fill=\"#7AA116\" x=\"0\" y=\"0\" width=\"40\" height=\"40\"/>\u003cpath d=\"M19.536,22.049 C20.642,22.049 21.542,22.948 21.542,24.054 C21.542,25.16 20.642,26.06 19.536,26.06 C18.43,26.06 17.53,25.16 17.53,24.054 C17.53,22.948 18.43,22.049 19.536,22.049 L19.536,22.049 Z M19.012,27.007 L19.012,30.501 L20.012,30.501 L20.012,27.012 C21.442,26.782 22.542,25.549 22.542,24.054 C22.542,22.397 21.193,21.049 19.536,21.049 C17.879,21.049 16.53,22.397 16.53,24.054 C16.53,25.532 17.604,26.757 19.012,27.007 L19.012,27.007 Z M10,33.014 L29.012,33.014 L29.012,18 L10,18 L10,33.014 Z M14.046,12.484 C14.046,9.46 16.506,7 19.529,7 C22.553,7 25.012,9.46 25.012,12.484 L25.012,17 L14.046,17 L14.046,12.484 Z M29.512,17 L26.012,17 L26.012,12.484 C26.012,8.908 23.103,6 19.529,6 C15.954,6 13.046,8.908 13.046,12.484 L13.046,17 L9.5,17 C9.223,17 9,17.224 9,17.5 L9,33.514 C9,33.79 9.223,34.014 9.5,34.014 L29.512,34.014 C29.788,34.014 30.012,33.79 30.012,33.514 L30.012,17.5 C30.012,17.224 29.788,17 29.512,17 L29.512,17 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>","vpc":"\u003csvg width=\"40px\" height=\"40px\" viewBox=\"0 0 40 40\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003crect fill=\"#8C4FFF\" x=\"0\" y=\"0\" width=\"40\" height=\"40\"/>\u003cpath d=\"M30.9707,21.0293596 L28.0267,19.7663596 L28.0267,30.2553596 C30.5717,29.9033596 30.9587,27.2873596 30.9747,27.1683596 L30.9707,21.0293596 Z M27.0267,30.2693596 L27.0267,19.7593596 L23.9917,21.0323596 L23.9917,27.2333596 C24.0047,27.2873596 24.4367,30.0003596 27.0267,30.2693596 L27.0267,30.2693596 Z M27.3327,18.5473596 C27.4567,18.4943596 27.5987,18.4953596 27.7237,18.5483596 L31.6677,20.2403596 C31.8517,20.3193596 31.9707,20.4993596 31.9707,20.6993596 L31.9707,27.2333596 C31.7877,28.6803596 30.6137,31.2963596 27.4437,31.2963596 C24.3687,31.2963596 23.1897,28.6843596 22.9957,27.3023596 L22.9917,20.6993596 C22.9917,20.4983596 23.1127,20.3163596 23.2977,20.2383596 L27.3327,18.5473596 Z M32.9827022,19.1843596 L27.5217,16.7783596 L21.9917,19.1053596 L21.9917,26.2333596 C21.9907,26.2753596 21.9377,29.1013596 23.6487,30.8563596 C24.5657,31.7973596 25.8427,32.2753596 27.4437,32.2753596 C29.0457,32.2753596 30.3307,31.7963596 31.2627,30.8533596 C32.9977,29.0953596 32.9827022,26.2683596 32.9827022,26.2403596 L32.9827022,19.1843596 Z M31.9797,31.5503596 C30.8527,32.6943596 29.3257,33.2753596 27.4437,33.2753596 C25.5597,33.2753596 24.0397,32.6943596 22.9267,31.5483596 C20.9217,29.4853596 20.9877,26.3513596 20.9917,26.2193596 L20.9917,18.7733596 C20.9917,18.5723596 21.1117,18.3903596 21.2967,18.3123596 L27.3317,15.7723596 C27.4587,15.7203596 27.6027,15.7193596 27.7277,15.7763596 L33.6837,18.4013596 C33.8657,18.4813596 33.9827,18.6603596 33.9827,18.8583596 L33.9827,26.2333596 C33.9847,26.3583596 34.0097,29.4883596 31.9797,31.5503596 L31.9797,31.5503596 Z M10.9917,24.2363596 L18.9917,24.2363596 L18.9917,25.2363596 L10.9917,25.2363596 C8.1807,25.2363596 6.1807,23.2203596 6.0127,20.2203596 C6.0007,20.1093596 5.9997,19.9753596 5.9997,19.8413596 C5.9997,17.3323596 7.3177,15.6183596 9.8167,14.8623596 C9.7977,14.6353596 9.7847,14.3963596 9.7847,14.2153596 C9.7847,11.2993596 11.3617,8.77035958 13.8017,7.77035958 C17.0997,6.42235958 20.8437,6.87635958 22.9077,8.87435958 C23.6527,9.59835958 24.2317,10.4163596 24.6677,11.3593596 C25.2767,10.9093596 26.0677,10.6983596 27.0167,10.7453596 C28.7967,10.8353596 30.1657,12.4583596 30.4497,14.7523596 C31.9477,14.8763596 32.9347,15.6353596 33.4597,17.0603596 L32.5227,17.4063596 C32.0947,16.2493596 31.3147,15.7333596 29.9917,15.7333596 C29.7267,15.7333596 29.5077,15.5273596 29.4917,15.2633596 C29.3537,12.9253596 28.0857,11.8003596 26.9657,11.7443596 C26.0207,11.6913596 25.3207,11.9633596 24.8867,12.5353596 C24.7757,12.6803596 24.6017,12.7523596 24.4137,12.7283596 C24.2337,12.7003596 24.0817,12.5773596 24.0187,12.4053596 C23.6147,11.3023596 23.0237,10.3823596 22.2117,9.59135958 C20.4237,7.86135958 17.1217,7.49235958 14.1807,8.69635958 C12.1177,9.54135958 10.7847,11.7073596 10.7847,14.2153596 C10.7847,14.4883596 10.8197,14.9113596 10.8507,15.1743596 C10.8807,15.4253596 10.7197,15.6583596 10.4747,15.7183596 C8.1687,16.2903596 6.9997,17.6773596 6.9997,19.8413596 C6.9997,19.9423596 6.9987,20.0423596 7.0087,20.1433596 C7.1497,22.6383596 8.7117,24.2363596 10.9917,24.2363596 L10.9917,24.2363596 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>"},"release":"2026-07-31","services":{"bedrock":"\u003csvg width=\"64px\" height=\"64px\" viewBox=\"0 0 64 64\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003cg fill=\"#01A88D\">\u003crect x=\"0\" y=\"0\" width=\"64\" height=\"64\"/>\u003c/g>\u003cg transform=\"translate(10.000000, 10.000000)\" fill=\"#FFFFFF\">\u003cpath d=\"M41,20.9998818 C40.448,20.9998818 40,20.5508818 40,19.9998818 C40,19.4488818 40.448,18.9998818 41,18.9998818 C41.552,18.9998818 42,19.4488818 42,19.9998818 C42,20.5508818 41.552,20.9998818 41,20.9998818 L41,20.9998818 Z M16.977,41.8478818 L13.774,40.1018818 L17.515,37.8568818 L16.485,36.1428818 L11.738,38.9908818 L7,36.4058818 L7,30.5658818 L11.515,27.8568818 L10.485,26.1428818 L6,28.8338818 L2,26.4338818 L2,22.6178818 L7.447,19.8948818 L6.553,18.1048818 L2,20.3818818 L2,17.6178818 L6.956,15.1398818 L11,17.5658818 L11,20.3818818 L7.553,22.1048818 L8.447,23.8948818 L12.003,22.1168818 L15.557,23.8768818 L16.443,22.0848818 L13,20.3798818 L13,17.5658818 L17.515,14.8568818 C17.815,14.6768818 18,14.3508818 18,13.9998818 L18,8.99988178 L16,8.99988178 L16,13.4338818 L12,15.8338818 L8,13.4338818 L8,6.58788178 L11,4.92188178 L11,10.9998818 L13,10.9998818 L13,3.81088178 L16.024,2.12988178 L21.002,4.61588178 L21.001,26.4498818 L10.463,33.1558818 L11.537,34.8438818 L21.001,28.8218818 L21,39.4338818 L16.977,41.8478818 Z M38,28.9998818 C38.552,28.9998818 39,29.4488818 39,29.9998818 C39,30.5508818 38.552,30.9998818 38,30.9998818 C37.448,30.9998818 37,30.5508818 37,29.9998818 C37,29.4488818 37.448,28.9998818 38,28.9998818 L38,28.9998818 Z M30,38.9998818 C29.448,38.9998818 29,38.5508818 29,37.9998818 C29,37.4488818 29.448,36.9998818 30,36.9998818 C30.552,36.9998818 31,37.4488818 31,37.9998818 C31,38.5508818 30.552,38.9998818 30,38.9998818 L30,38.9998818 Z M32,5.99988178 C32.552,5.99988178 33,6.44888178 33,6.99988178 C33,7.55088178 32.552,7.99988178 32,7.99988178 C31.448,7.99988178 31,7.55088178 31,6.99988178 C31,6.44888178 31.448,5.99988178 32,5.99988178 L32,5.99988178 Z M41,16.9998818 C39.698,16.9998818 38.598,17.8388818 38.184,18.9998818 L23.001,18.9998818 L23.001,14.9998818 L32,14.9998818 C32.553,14.9998818 33,14.5518818 33,13.9998818 L33,9.81588178 C34.161,9.40188178 35,8.30188178 35,6.99988178 C35,5.34588178 33.654,3.99988178 32,3.99988178 C30.346,3.99988178 29,5.34588178 29,6.99988178 C29,8.30188178 29.839,9.40188178 31,9.81588178 L31,12.9998818 L23.001,12.9998818 L23.002,3.99788178 C23.002,3.61888178 22.788,3.27288178 22.449,3.10388178 L16.447,0.104881781 C16.151,-0.0421182195 15.803,-0.0341182195 15.515,0.125881781 L6.515,5.12588178 C6.197,5.30188178 6,5.63688178 6,5.99988178 L6,13.3818818 L0.553,16.1048818 C0.214,16.2748818 0,16.6208818 0,16.9998818 L0,26.9998818 C0,27.3508818 0.185,27.6768818 0.485,27.8568818 L5,30.5658818 L5,36.9998818 C5,37.3658818 5.2,37.7028818 5.521,37.8778818 L16.521,43.8778818 C16.671,43.9588818 16.835,43.9998818 17,43.9998818 C17.179,43.9998818 17.356,43.9518818 17.515,43.8568818 L22.515,40.8568818 C22.815,40.6768818 23,40.3508818 23,39.9998818 L23,32.9998818 L29,32.9998818 L29,35.1838818 C27.839,35.5978818 27,36.6978818 27,37.9998818 C27,39.6538818 28.346,40.9998818 30,40.9998818 C31.654,40.9998818 33,39.6538818 33,37.9998818 C33,36.6978818 32.161,35.5978818 31,35.1838818 L31,31.9998818 C31,31.4478818 30.553,30.9998818 30,30.9998818 L23,30.9998818 L23.001,26.9998818 L33.586,26.9998818 L35.301,28.7148818 C35.113,29.1058818 35,29.5378818 35,29.9998818 C35,31.6538818 36.346,32.9998818 38,32.9998818 C39.654,32.9998818 41,31.6538818 41,29.9998818 C41,28.3458818 39.654,26.9998818 38,26.9998818 C37.538,26.9998818 37.106,27.1128818 36.715,27.3008818 L34.707,25.2928818 C34.52,25.1048818 34.266,24.9998818 34,24.9998818 L23.001,24.9998818 L23.001,20.9998818 L38.184,20.9998818 C38.598,22.1608818 39.698,22.9998818 41,22.9998818 C42.654,22.9998818 44,21.6538818 44,19.9998818 C44,18.3458818 42.654,16.9998818 41,16.9998818 L41,16.9998818 Z\"/>\u003c/g>\u003c/g>\u003c/svg>","bedrock-agentcore":"\u003csvg width=\"64\" height=\"64\" viewBox=\"0 0 64 64\" fill=\"none\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg clip-path=\"url(#clip0_211_72)\">\u003crect width=\"64\" height=\"64\" fill=\"#01A88D\"/>\u003cpath d=\"M53.3721 21.0727L50.8965 20.0801L49.9326 17.6343C49.7812 17.2519 49.4131 17.001 49.0019 17.001C48.5908 17.0015 48.2217 17.2529 48.0713 17.6357L47.0976 20.1157L44.6377 21.0703C44.2529 21.2197 43.999 21.5913 44 22.0049C44.0009 22.4184 44.2568 22.7891 44.6426 22.9365L47.1553 23.897L48.0625 26.3481C48.2051 26.7353 48.5723 26.9946 48.9853 27.001H49C49.4072 27.001 49.7744 26.7539 49.9277 26.375L50.9385 23.8686L53.3603 22.9341C53.7432 22.7856 53.9971 22.4184 54 22.0073C54.0029 21.5967 53.7539 21.2256 53.3721 21.0727ZM49.8135 22.1592C49.5557 22.2593 49.3496 22.4614 49.2461 22.7183L49.04 23.2285L48.873 22.7773C48.7734 22.5073 48.5615 22.2934 48.293 22.1904L47.7822 21.9951L48.2305 21.8213C48.4902 21.7202 48.6973 21.5146 48.7988 21.2544L49.0039 20.7319L49.1592 21.1265C49.25 21.437 49.4883 21.6855 49.793 21.792L50.2695 21.9834L49.8135 22.1592ZM51.2148 30.853L44.0078 27.9629L41.1973 20.8379C41.0078 20.3569 40.5508 20.0459 40.0342 20.0459C39.5166 20.0464 39.0586 20.3574 38.8701 20.8394L36.0312 28.0747L33.0011 29.2507L33.0019 13.998C33.0019 13.6191 32.788 13.2729 32.4492 13.1035L26.4472 10.1055C26.1513 9.95849 25.8027 9.96581 25.5146 10.126L16.5146 15.126C16.1972 15.3022 16 15.6367 16 16V23.3818L10.5527 26.1055C10.2138 26.2749 9.99997 26.6211 9.99997 27V37C9.99997 37.3511 10.1845 37.6768 10.4853 37.8574L15 40.5664V47C15 47.3657 15.2002 47.7026 15.5214 47.8779L26.5215 53.8779C26.6709 53.9594 26.8349 54 27 54C27.1787 54 27.3564 53.9521 27.5146 53.8574L32.5146 50.8574C32.8154 50.6767 33 50.351 33 50L33.0008 34.7649L36.2138 35.9927L38.8662 43.1616C39.0459 43.6494 39.499 43.9697 40.0185 43.9775C40.0253 43.9775 40.0322 43.978 40.039 43.978C40.5507 43.978 41.0039 43.6733 41.1982 43.1953L44.1396 35.9053L51.1992 33.1797C51.6816 32.9941 51.9961 32.5395 52 32.022C52.0029 31.5044 51.6953 31.0454 51.2148 30.853ZM26.9766 51.8481L23.7745 50.1015L27.5146 47.8574L26.4853 46.1426L21.7383 48.9908L17 46.4062V40.5662L21.5146 37.8574L20.4853 36.1426L16 38.8338L12 36.4336V32.6182L17.4472 29.8945L16.5527 28.1055L12 30.3818V27.6182L16.9563 25.14L21 27.5662V30.3818L17.5527 32.1055L18.4472 33.8945L22.0026 32.1169L25.5566 33.877L26.4433 32.085L23 30.3797V27.5664L27.5146 24.8574C27.8154 24.6768 28 24.3511 28 24V19H26V23.4336L22 25.8338L18 23.4338V16.5884L21 14.9217V21H23V13.8106L26.0244 12.1304L31.0019 14.6162L31.0007 36.4504L20.4629 43.1563L21.5371 44.8438L31.0006 38.8215L31 49.4336L26.9766 51.8481ZM43.0146 34.1953C42.7568 34.2954 42.5508 34.4976 42.4473 34.7544L40.0683 40.6494L37.9316 34.8735C37.832 34.6035 37.6201 34.3896 37.3516 34.2866L33.0009 32.6238L33.001 31.3955L37.1631 29.7803C37.4238 29.6792 37.6308 29.4736 37.7324 29.2134L40.0361 23.3438L42.2431 28.9385C42.3183 29.2905 42.5849 29.5747 42.9258 29.6841L48.7021 32L43.0146 34.1953Z\" fill=\"white\"/>\u003c/g>\u003cdefs>\u003cclipPath>\u003crect width=\"64\" height=\"64\" fill=\"white\"/>\u003c/clipPath>\u003c/defs>\u003c/svg>","cloudfront":"\u003csvg width=\"64px\" height=\"64px\" viewBox=\"0 0 64 64\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003cg fill=\"#8C4FFF\">\u003crect x=\"0\" y=\"0\" width=\"64\" height=\"64\"/>\u003c/g>\u003cpath d=\"M41.5,43.5 C40.397,43.5 39.5,42.603 39.5,41.5 C39.5,40.397 40.397,39.5 41.5,39.5 C42.603,39.5 43.5,40.397 43.5,41.5 C43.5,42.603 42.603,43.5 41.5,43.5 L41.5,43.5 Z M41.5,37.5 C39.294,37.5 37.5,39.294 37.5,41.5 C37.5,43.706 39.294,45.5 41.5,45.5 C43.706,45.5 45.5,43.706 45.5,41.5 C45.5,39.294 43.706,37.5 41.5,37.5 L41.5,37.5 Z M22.5,32.5 C21.397,32.5 20.5,31.603 20.5,30.5 C20.5,29.397 21.397,28.5 22.5,28.5 C23.603,28.5 24.5,29.397 24.5,30.5 C24.5,31.603 23.603,32.5 22.5,32.5 L22.5,32.5 Z M22.5,26.5 C20.294,26.5 18.5,28.294 18.5,30.5 C18.5,32.706 20.294,34.5 22.5,34.5 C24.706,34.5 26.5,32.706 26.5,30.5 C26.5,28.294 24.706,26.5 22.5,26.5 L22.5,26.5 Z M45.389,47.124 C45.168,46.607 44.936,46.094 44.685,45.591 L42.896,46.486 C43.17,47.035 43.42,47.599 43.656,48.165 C42.82,48.762 41.943,49.288 41.028,49.74 C41.384,48.865 41.694,47.975 41.974,47.012 L40.054,46.454 C39.564,48.134 38.985,49.581 38.184,51.133 C36.357,51.698 34.452,52 32.5,52 C29.465,52 26.567,51.314 23.871,49.976 C22.503,46.615 21.838,43.534 21.838,40.559 C21.838,39.267 22.063,38.196 22.322,36.956 C22.386,36.652 22.45,36.343 22.514,36.024 L20.551,35.638 C20.49,35.949 20.427,36.25 20.365,36.545 C20.094,37.838 19.838,39.06 19.838,40.559 C19.838,43.074 20.274,45.644 21.154,48.354 C16.072,44.724 13,38.854 13,32.5 C13,32.389 13.01,32.273 13.012,32.161 C14.642,31.799 16.123,31.614 17.854,31.571 L17.804,29.572 C16.169,29.612 14.694,29.779 13.163,30.084 C14.081,22.683 19.212,16.394 26.323,14.019 C27.873,14.818 29.02,15.524 30.135,16.37 L31.344,14.776 C30.646,14.248 29.934,13.771 29.146,13.299 C30.244,13.108 31.363,13 32.5,13 C35.032,13 37.532,13.494 39.849,14.439 C39.342,14.593 38.82,14.763 38.243,14.971 L38.923,16.852 C40.316,16.349 41.408,16.04 42.571,15.821 C48.399,19.341 52,25.667 52,32.5 C52,38.156 49.605,43.416 45.389,47.124 L45.389,47.124 Z M43.008,13.749 C39.826,11.95 36.192,11 32.5,11 C30.392,11 28.324,11.301 26.357,11.895 C17.723,14.464 11.568,22.23 11.045,31.196 C11.01,31.625 11,32.062 11,32.5 C11,40.444 15.352,47.707 22.354,51.455 C25.459,53.12 28.968,54 32.5,54 C34.892,54 37.229,53.61 39.437,52.843 C41.684,52.086 43.773,50.963 45.646,49.507 C50.955,45.399 54,39.2 54,32.5 C54,24.732 49.787,17.546 43.008,13.749 L43.008,13.749 Z M38.384,37.411 L37.003,38.858 C34.022,36.015 31.047,34.146 27.637,32.975 L28.287,31.083 C31.979,32.351 35.188,34.362 38.384,37.411 L38.384,37.411 Z M38.444,22.364 C41.282,26.692 42.88,31.444 43.193,36.488 L41.197,36.612 C40.905,31.919 39.417,27.495 36.772,23.46 L38.444,22.364 Z M26.451,26.797 L24.773,25.708 C26.316,23.332 27.639,21.758 29.336,20.278 L30.65,21.786 C29.103,23.135 27.886,24.587 26.451,26.797 L26.451,26.797 Z M34.5,16.5 C35.603,16.5 36.5,17.397 36.5,18.5 C36.5,19.603 35.603,20.5 34.5,20.5 C33.397,20.5 32.5,19.603 32.5,18.5 C32.5,17.397 33.397,16.5 34.5,16.5 L34.5,16.5 Z M34.5,22.5 C36.706,22.5 38.5,20.706 38.5,18.5 C38.5,16.294 36.706,14.5 34.5,14.5 C32.294,14.5 30.5,16.294 30.5,18.5 C30.5,20.706 32.294,22.5 34.5,22.5 L34.5,22.5 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>","cognito":"\u003csvg width=\"64px\" height=\"64px\" viewBox=\"0 0 64 64\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003cg fill=\"#DD344C\">\u003crect x=\"0\" y=\"0\" width=\"64\" height=\"64\"/>\u003c/g>\u003cpath d=\"M48.3851357,21.0063704 L48.3851357,15.7026189 C48.3851357,14.780967 47.766933,14.0014156 47.034585,14.0014156 L13.370821,14.0014156 C12.638473,14.0014156 12.0202703,14.780967 12.0202703,15.7026189 L12.0202703,21.0063704 L27.1722975,21.0063704 L27.1722975,17.0035391 C27.1722975,16.4511484 27.623828,16.0028313 28.1824327,16.0028313 L45.3547302,16.0028313 C45.913335,16.0028313 46.3648654,16.4511484 46.3648654,17.0035391 L46.3648654,21.0063704 L48.3851357,21.0063704 Z M44.3445951,18.0042469 L29.1925678,18.0042469 L29.1925678,30.3880062 C30.1532064,28.5877328 31.7471996,27.158722 33.7260544,26.4031876 C33.1189632,25.6316419 32.7724868,24.6739645 32.7724868,23.6662517 C32.7724868,21.1985063 34.8109395,19.1920871 37.318095,19.1920871 C39.8242403,19.1920871 41.8637032,21.1985063 41.8637032,23.6662517 C41.8637032,24.7400112 41.4657099,25.7517268 40.7838687,26.5452881 C42.1970478,27.1607234 43.4364836,28.1454199 44.3445951,29.3913012 L44.3445951,18.0042469 Z M39.8434329,23.6662517 C39.8434329,22.302287 38.7110714,21.1935027 37.318095,21.1935027 C35.9251186,21.1935027 34.7927571,22.302287 34.7927571,23.6662517 C34.7927571,24.5628859 35.2907537,25.3894706 36.0938112,25.8237778 C36.8453517,26.2290645 37.7726558,26.2360694 38.5383383,25.8227771 C39.343416,25.3894706 39.8434329,24.5628859 39.8434329,23.6662517 L39.8434329,23.6662517 Z M48.3861458,33.0148642 L48.3851357,23.007786 L46.3648654,23.007786 L46.3648654,30.0127407 L44.6516762,30.0127407 L43.006166,30.9984379 C42.1596728,29.6134583 40.8050815,28.5737229 39.2514937,28.1043909 C37.8766997,28.7108198 36.271595,28.7048156 34.9149835,28.1043909 C32.2532774,28.9059579 30.40473,31.2636255 30.2350273,34.015572 L36.2635139,34.015572 L36.2635139,36.0169876 L28.1824327,36.0169876 C27.623828,36.0169876 27.1722975,35.5686705 27.1722975,35.0162798 L27.1722975,23.007786 L12.0202703,23.007786 L12.0202703,37.3179078 C12.0202703,38.2395597 12.638473,39.0191111 13.370821,39.0191111 L33.2331084,39.0191111 L33.2331084,41.0205267 L13.370821,41.0205267 C11.5121723,41.0205267 10,39.3593517 10,37.3179078 L10,15.7026189 C10,13.661175 11.5121723,12 13.370821,12 L47.034585,12 C48.8932337,12 50.405406,13.661175 50.405406,15.7026189 L50.405406,33.0148642 L48.3861458,33.0148642 Z M43.305166,46.9937517 L48.9316188,41.4198091 L47.5032877,40.0048083 L42.5910005,44.8712504 L40.4757775,42.7757682 L39.0474464,44.1907691 L41.8768349,46.9937517 C42.0657302,47.1818847 42.3223045,47.2869591 42.5910005,47.2869591 C42.8586863,47.2869591 43.1152606,47.1818847 43.305166,46.9937517 L43.305166,46.9937517 Z M45.3173552,35.9629494 L45.3173552,35.9629494 C47.8174397,36.2661639 49.9983215,37.7822362 51.1498756,40.0198189 C51.8397979,41.3597667 52.1074837,42.8628298 51.922629,44.3638915 C51.7418148,45.8489419 51.1316932,47.2319201 50.1579229,48.3607186 C49.4659803,49.1642869 48.5922134,49.8277562 47.6315749,50.2790754 C46.3456728,50.8855044 44.9143113,51.1166679 43.4890106,50.9435454 C42.1051255,50.7764272 40.7980106,50.2340436 39.7090849,49.3774377 C37.6181051,47.7302726 36.5615038,45.1744649 36.8837369,42.5426033 C37.1877876,40.0548437 38.7070308,37.8853091 40.9475106,36.7374973 C42.019264,36.1891094 43.1950613,35.9079105 44.3930816,35.9079105 C44.7001627,35.9079105 45.0082539,35.9259232 45.3173552,35.9629494 L45.3173552,35.9629494 Z M48.4982708,52.0873545 C49.7134634,51.5159503 50.8195614,50.6763564 51.6943384,49.660638 C52.9267033,48.2306265 53.6994567,46.48239 53.9287574,44.6050621 C54.1610885,42.7077201 53.8226932,40.8073759 52.9499364,39.1101755 C51.4923114,36.2791731 48.7306019,34.3598155 45.5618079,33.9765444 C43.6496221,33.7423788 41.7293552,34.0846208 40.0202065,34.9602402 C37.1847572,36.4112665 35.26247,39.156208 34.8776085,42.3014327 C34.4715341,45.6297869 35.8079429,48.8600718 38.4524768,50.9435454 C39.8323214,52.0303141 41.4899532,52.7178004 43.2445579,52.9299505 C43.6334599,52.9769837 44.0233721,53 44.4102539,53 C45.823433,53 47.2174195,52.6907813 48.4982708,52.0873545 L48.4982708,52.0873545 Z M21.1114866,33.0148642 L24.1418921,33.0148642 L24.1418921,31.0134485 L21.1114866,31.0134485 L21.1114866,33.0148642 Z M14.0405406,33.0148642 L20.1013515,33.0148642 L20.1013515,31.0134485 L14.0405406,31.0134485 L14.0405406,33.0148642 Z M14.0405406,28.0113251 L23.1317569,28.0113251 L23.1317569,26.0099094 L14.0405406,26.0099094 L14.0405406,28.0113251 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>","ec2":"\u003csvg width=\"64px\" height=\"64px\" viewBox=\"0 0 64 64\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003cg fill=\"#ED7100\">\u003crect x=\"0\" y=\"0\" width=\"64\" height=\"64\"/>\u003c/g>\u003cpath d=\"M22,41 L41,41 L41,23 L22,23 L22,41 Z M43,23 L46,23 L46,25 L43,25 L43,27 L46,27 L46,29 L43,29 L43,31 L46,31 L46,33 L43,33 L43,36 L46,36 L46,38 L43,38 L43,40 L46,40 L46,42 L42.863,42 C42.608,42.587 42.023,43 41.344,43 L41,43 L41,46 L39,46 L39,43 L37,43 L37,46 L35,46 L35,43 L33,43 L33,46 L31,46 L31,43 L29,43 L29,46 L27,46 L27,43 L24,43 L24,46 L22,46 L22,43 L21.656,43 C20.977,43 20.392,42.587 20.137,42 L18,42 L18,40 L20,40 L20,38 L18,38 L18,36 L20,36 L20,33 L18,33 L18,31 L20,31 L20,29 L18,29 L18,27 L20,27 L20,25 L18,25 L18,23 L20,23 L20,22.656 C20,21.743 20.743,21 21.656,21 L22,21 L22,18 L24,18 L24,21 L27,21 L27,18 L29,18 L29,21 L31,21 L31,18 L33,18 L33,21 L35,21 L35,18 L37,18 L37,21 L39,21 L39,18 L41,18 L41,21 L41.344,21 C42.257,21 43,21.743 43,22.656 L43,23 Z M32,52 L12,52 L12,32 L16,32 L16,30 L11.843,30 C10.826,30 10,30.827 10,31.843 L10,52.157 C10,53.173 10.826,54 11.843,54 L32.157,54 C33.174,54 34,53.173 34,52.157 L34,48 L32,48 L32,52 Z M54,11.843 L54,32.157 C54,33.173 53.174,34 52.157,34 L48,34 L48,32 L52,32 L52,12 L32,12 L32,16 L30,16 L30,11.843 C30,10.827 30.826,10 31.843,10 L52.157,10 C53.174,10 54,10.827 54,11.843 L54,11.843 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>","ecr":"\u003csvg width=\"64px\" height=\"64px\" viewBox=\"0 0 64 64\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003cg fill=\"#ED7100\">\u003crect x=\"0\" y=\"0\" width=\"64\" height=\"64\"/>\u003c/g>\u003cpath d=\"M30.726,29.9221953 C30.279,30.1827125 30,30.6666734 30,31.1847019 L30,51.5341041 L15,42.8578781 L15,23.0114745 L32.172,13.0777519 L47.088,20.4574036 L30.726,29.9221953 Z M49.704,20.42033 C49.704,19.9023015 49.426,19.4203446 48.921,19.1317717 L32.879,11.1960158 C32.433,10.9354986 31.876,10.9344966 31.428,11.1940118 L13.729,21.4333413 C13.28,21.6928565 13,22.1768174 13,22.6968499 L13,43.1725028 C13,43.6905313 13.279,44.1744922 13.728,44.4350094 L29.816,53.7414867 C30.04,53.8717454 30.292,53.9368747 30.545,53.9368747 C30.796,53.9368747 31.047,53.8727473 31.272,53.7424887 C31.721,53.4829735 32,52.9990126 32,52.4789801 L32,31.4993265 L48.978,21.6778267 C49.426,21.4193134 49.704,20.9373565 49.704,20.42033 L49.704,20.42033 Z M50,42.9410432 L37.004,51.5331022 L37.004,44.4099597 L43.603,39.4160446 C43.853,39.2266686 44,38.9300798 44,38.6164571 L44,30.4803034 L50,27.0064062 L50,42.9410432 Z M51.273,24.7990236 C50.825,24.5385063 50.267,24.5375044 49.817,24.7990236 L42.879,28.812993 C42.639,28.9422497 42,29.287936 42,30.0304101 L42,38.1174664 L35.663,42.9129875 C35.255,43.1805187 35.004,43.6414338 35.004,44.1344126 L35.004,52.5461134 C35.004,53.0661459 35.284,53.5501068 35.733,53.809622 C35.951,53.9348707 36.195,54 36.445,54 C36.709,54 36.982,53.9278568 37.239,53.7775584 L51.275,44.4971327 C51.722,44.2376175 52,43.7536566 52,43.2356281 L52,26.0625322 C52,25.5424997 51.721,25.0585388 51.273,24.7990236 L51.273,24.7990236 Z\" fill=\"#FFFFFF\"/>\u003c/g>\u003c/svg>","igw":"\u003csvg width=\"48px\" height=\"48px\" viewBox=\"0 0 48 48\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003cpath d=\"M33.4312,35.1778 L31.9332,35.1778 L31.9332,17.5018 C31.9332,17.1088 31.7022,16.7518 31.3442,16.5908 L31.2522,16.5488 C29.2432,15.6418 27.1642,14.7028 24.1762,14.7028 C21.0532,14.7028 18.7612,15.7118 16.4952,16.8368 C16.1552,17.0058 15.9402,17.3528 15.9402,17.7328 L15.9402,35.1778 L14.4772,35.1778 L14.4772,16.3118 C16.9112,14.3328 20.4202,13.2048 24.1862,13.2048 C27.6872,13.2048 31.0252,14.2018 33.4312,15.9528 L33.4312,35.1778 Z M24.1862,11.2048 C19.7612,11.2048 15.6172,12.6238 12.8152,15.0998 C12.6002,15.2888 12.4772,15.5618 12.4772,15.8488 L12.4772,36.1778 C12.4772,36.7308 12.9242,37.1778 13.4772,37.1778 L16.9402,37.1778 C17.4932,37.1778 17.9402,36.7308 17.9402,36.1778 L17.9402,18.3558 C19.8592,17.4288 21.7192,16.7028 24.1762,16.7028 C26.5112,16.7028 28.2092,17.3778 29.9332,18.1488 L29.9332,36.1778 C29.9332,36.7308 30.3802,37.1778 30.9332,37.1778 L34.4312,37.1778 C34.9842,37.1778 35.4312,36.7308 35.4312,36.1778 L35.4312,15.4578 C35.4312,15.1538 35.2922,14.8658 35.0532,14.6748 C32.2792,12.4698 28.3182,11.2048 24.1862,11.2048 L24.1862,11.2048 Z M23.9542,43.9088 C12.9522,43.9088 3.9992,34.9568 3.9992,23.9538 C3.9992,12.9508 12.9522,3.9998 23.9542,3.9998 C34.9572,3.9998 43.9092,12.9508 43.9092,23.9538 C43.9092,34.9568 34.9572,43.9088 23.9542,43.9088 L23.9542,43.9088 Z M23.9542,1.9998 C11.8482,1.9998 1.9992,11.8488 1.9992,23.9538 C1.9992,36.0608 11.8482,45.9088 23.9542,45.9088 C36.0602,45.9088 45.9092,36.0608 45.9092,23.9538 C45.9092,11.8488 36.0602,1.9998 23.9542,1.9998 L23.9542,1.9998 Z\" fill=\"#8C4FFF\"/>\u003c/g>\u003c/svg>","internet":"\u003csvg width=\"48px\" height=\"48px\" viewBox=\"0 0 48 48\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003cpath d=\"M34.59,29.7893333 L30.997,33.3813333 L30.997,21.7593333 L28.997,21.7593333 L28.997,33.2703333 L25.556,29.7733333 L24.13,31.1763333 L29.325,36.4553333 C29.513,36.6453333 29.768,36.7533333 30.034,36.7543333 L30.038,36.7543333 C30.303,36.7543333 30.558,36.6483333 30.745,36.4613333 L36.004,31.2033333 L34.59,29.7893333 Z M22.35,27.7243333 L23.764,26.3103333 L18.506,21.0523333 C18.319,20.8643333 18.065,20.7593333 17.799,20.7593333 L17.795,20.7593333 C17.528,20.7603333 17.274,20.8673333 17.086,21.0583333 L11.89,26.3363333 L13.316,27.7383333 L16.757,24.2433333 L16.757,37.5543333 L18.757,37.5543333 L18.757,24.1313333 L22.35,27.7243333 Z M20.333,37.5723333 L27.4,37.5793333 L27.402,35.5793333 L20.335,35.5723333 L20.333,37.5723333 Z M46.026,29.1303333 C46.026,31.6173333 45.272,33.6283333 43.783,35.1053333 C41.332,37.5403333 37.776,37.5903333 37.496,37.5903333 L37.484,37.5903333 L32.721,37.5853333 L32.723,35.5853333 L37.491,35.5903333 C37.531,35.5903333 40.489,35.5693333 42.385,33.6763333 C43.474,32.5883333 44.026,31.0593333 44.026,29.1303333 C44.026,27.9483333 43.701,26.1793333 40.896,24.4603333 C39.422,23.5573333 38.041,23.2593333 37.517,23.1743333 C36.986,23.0873333 36.622,22.5993333 36.685,22.0693333 C36.507,19.9743333 35.526,18.5083333 33.982,18.0403333 C32.647,17.6363333 31.218,18.1083333 30.337,19.2443333 C30.116,19.5313333 29.763,19.6773333 29.396,19.6203333 C29.036,19.5653333 28.736,19.3203333 28.61,18.9793333 C27.992,17.3143333 27.099,15.9173333 25.955,14.8233333 C24.545,13.4753333 20.675,10.5743333 15.204,12.7843333 C12.069,14.0513333 9.611,17.6893333 9.611,21.0673333 C9.611,21.4443333 9.635,21.8223333 9.682,22.1893333 C9.743,22.6733333 9.446,23.1313333 8.981,23.2723333 C8.943,23.2843333 8.903,23.2933333 8.865,23.3003333 C7.02,23.7643333 4,25.1573333 4,29.2983333 C4,32.4433333 5.799,34.1823333 7.308,35.0873333 C7.823,35.3963333 8.419,35.5603333 9.029,35.5613333 L15.181,35.5673333 L15.179,37.5673333 L9.028,37.5613333 C8.055,37.5603333 7.104,37.2983333 6.278,36.8023333 C4.681,35.8443333 2,33.5953333 2,29.2983333 C2,25.5833333 4.084,22.7513333 7.623,21.5793333 C7.615,21.4093333 7.611,21.2383333 7.611,21.0673333 C7.611,16.8633333 10.554,12.5053333 14.456,10.9303333 C19.001,9.09333332 23.817,10.0113333 27.338,13.3783333 C28.37,14.3643333 29.228,15.5503333 29.897,16.9143333 C31.234,15.9453333 32.938,15.6373333 34.562,16.1263333 C36.751,16.7903333 38.234,18.7233333 38.615,21.3603333 C39.748,21.6423333 40.925,22.1323333 41.941,22.7553333 C44.69,24.4383333 46.026,26.5243333 46.026,29.1303333 L46.026,29.1303333 Z\" fill=\"#232F3D\"/>\u003c/g>\u003c/svg>","natgateway":"\u003csvg width=\"48px\" height=\"48px\" viewBox=\"0 0 48 48\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003cpath d=\"M13.6255,35.9209 L13.6255,33.0829 L15.3995,34.5019 L13.6255,35.9209 Z M13.2505,30.2209 C12.9495,29.9799 12.5365,29.9329 12.1915,30.1009 C11.8465,30.2679 11.6255,30.6169 11.6255,31.0019 L11.6255,38.0019 C11.6255,38.3869 11.8465,38.7359 12.1915,38.9029 C12.3305,38.9699 12.4785,39.0019 12.6255,39.0019 C12.8485,39.0019 13.0695,38.9279 13.2505,38.7829 L17.6255,35.2829 C17.8625,35.0929 18.0005,34.8059 18.0005,34.5019 C18.0005,34.1979 17.8625,33.9109 17.6255,33.7209 L13.2505,30.2209 Z M37.2515,26.8369 L37.2515,22.9149 L39.2125,24.8759 L37.2515,26.8369 Z M41.3335,24.1689 L36.9585,19.7939 C36.6725,19.5079 36.2445,19.4219 35.8685,19.5769 C35.4945,19.7319 35.2515,20.0969 35.2515,20.5009 L35.2515,23.8759 L27.6255,23.8759 L27.6255,14.3759 C27.6255,13.8229 27.1785,13.3759 26.6255,13.3759 L18.9315,13.3759 L18.9315,15.3759 L25.6255,15.3759 L25.6255,23.8759 L18.7505,23.8759 L18.7505,25.8759 L25.6255,25.8759 L25.6255,34.3769 L18.9315,34.3769 L18.9315,36.3769 L26.6255,36.3769 C27.1785,36.3769 27.6255,35.9299 27.6255,35.3769 L27.6255,25.8759 L35.2515,25.8759 L35.2515,29.2519 C35.2515,29.6559 35.4955,30.0219 35.8685,30.1759 C35.9925,30.2279 36.1225,30.2519 36.2515,30.2519 C36.5115,30.2519 36.7675,30.1499 36.9585,29.9589 L41.3335,25.5829 C41.7245,25.1919 41.7245,24.5599 41.3335,24.1689 L41.3335,24.1689 Z M13.6255,26.2959 L13.6255,23.4569 L15.3995,24.8759 L13.6255,26.2959 Z M13.2505,20.5949 C12.9495,20.3539 12.5365,20.3079 12.1915,20.4749 C11.8465,20.6419 11.6255,20.9909 11.6255,21.3759 L11.6255,28.3769 C11.6255,28.7619 11.8465,29.1109 12.1915,29.2779 C12.3305,29.3449 12.4785,29.3769 12.6255,29.3769 C12.8485,29.3769 13.0695,29.3029 13.2505,29.1579 L17.6255,25.6569 C17.8625,25.4669 18.0005,25.1799 18.0005,24.8759 C18.0005,24.5719 17.8625,24.2849 17.6255,24.0949 L13.2505,20.5949 Z M13.6255,15.7949 L13.6255,12.9569 L15.3995,14.3759 L13.6255,15.7949 Z M13.2505,10.0949 C12.9495,9.8539 12.5365,9.8069 12.1915,9.9749 C11.8465,10.1419 11.6255,10.4909 11.6255,10.8759 L11.6255,17.8759 C11.6255,18.2609 11.8465,18.6099 12.1915,18.7769 C12.3305,18.8439 12.4785,18.8759 12.6255,18.8759 C12.8485,18.8759 13.0695,18.8019 13.2505,18.6569 L17.6255,15.1569 C17.8625,14.9669 18.0005,14.6799 18.0005,14.3759 C18.0005,14.0719 17.8625,13.7849 17.6255,13.5949 L13.2505,10.0949 Z M24.0005,44.0029 C12.9725,44.0029 3.9995,35.0299 3.9995,24.0009 C3.9995,12.9729 12.9725,3.9999 24.0005,3.9999 C35.0295,3.9999 44.0025,12.9729 44.0025,24.0009 C44.0025,35.0299 35.0295,44.0029 24.0005,44.0029 L24.0005,44.0029 Z M24.0005,1.9999 C11.8685,1.9999 1.9995,11.8689 1.9995,24.0009 C1.9995,36.1329 11.8685,46.0029 24.0005,46.0029 C36.1325,46.0029 46.0025,36.1329 46.0025,24.0009 C46.0025,11.8689 36.1325,1.9999 24.0005,1.9999 L24.0005,1.9999 Z\" fill=\"#8C4FFF\"/>\u003c/g>\u003c/svg>","users":"\u003csvg width=\"48px\" height=\"48px\" viewBox=\"0 0 48 48\" xmlns=\"http://www.w3.org/2000/svg\">\u003cg stroke=\"none\" stroke-width=\"1\" fill=\"none\" fill-rule=\"evenodd\">\u003cpath d=\"M28.639,9.286 C28.639,6.371 31.052,4 34.019,4 C36.985,4 39.397,6.371 39.397,9.286 C39.397,12.201 36.985,14.572 34.019,14.572 C31.052,14.572 28.639,12.201 28.639,9.286 L28.639,9.286 Z M40.163,16.334 C39.516,15.932 38.833,15.6 38.128,15.333 C40.098,14.023 41.397,11.802 41.397,9.286 C41.397,5.269 38.087,2 34.019,2 C29.95,2 26.639,5.269 26.639,9.286 C26.639,11.796 27.932,14.014 29.895,15.325 C28.614,15.808 27.41,16.515 26.349,17.425 L27.652,18.943 C29.434,17.414 31.689,16.572 34,16.572 C35.802,16.572 37.569,17.077 39.109,18.033 C41.849,19.735 43.647,22.725 43.953,26 L34,26 L34,28 L45,28 C45.553,28 46,27.553 46,27 C46,22.657 43.764,18.57 40.163,16.334 L40.163,16.334 Z M8.639,9.286 C8.639,6.371 11.052,4 14.019,4 C16.985,4 19.397,6.371 19.397,9.286 C19.397,12.201 16.985,14.572 14.019,14.572 C11.052,14.572 8.639,12.201 8.639,9.286 L8.639,9.286 Z M14,26 L4.046,26 C4.53,20.717 8.81,16.572 14,16.572 C15.802,16.572 17.569,17.077 19.109,18.033 C19.541,18.302 19.958,18.608 20.349,18.943 L21.652,17.426 C21.184,17.024 20.684,16.657 20.163,16.334 C19.516,15.932 18.833,15.6 18.128,15.333 C20.098,14.023 21.397,11.802 21.397,9.286 C21.397,5.269 18.087,2 14.019,2 C9.95,2 6.639,5.269 6.639,9.286 C6.639,11.801 7.937,14.023 9.907,15.332 C5.302,17.071 2,21.638 2,27 C2,27.553 2.448,28 3,28 L14,28 L14,26 Z M14.046,44 C14.53,38.717 18.81,34.572 24,34.572 C25.802,34.572 27.569,35.077 29.109,36.033 C31.849,37.735 33.647,40.725 33.953,44 L14.046,44 Z M18.639,27.286 C18.639,24.371 21.052,22 24.019,22 C26.985,22 29.397,24.371 29.397,27.286 C29.397,30.201 26.985,32.572 24.019,32.572 C21.052,32.572 18.639,30.201 18.639,27.286 L18.639,27.286 Z M30.163,34.334 C29.516,33.932 28.833,33.6 28.128,33.333 C30.098,32.023 31.397,29.802 31.397,27.286 C31.397,23.269 28.087,20 24.019,20 C19.95,20 16.639,23.269 16.639,27.286 C16.639,29.801 17.937,32.023 19.907,33.332 C15.302,35.071 12,39.638 12,45 C12,45.553 12.448,46 13,46 L35,46 C35.553,46 36,45.553 36,45 C36,40.657 33.764,36.57 30.163,34.334 L30.163,34.334 Z\" fill=\"#242F3E\"/>\u003c/g>\u003c/svg>"},"source":"AWS Architecture Icons (https://aws.amazon.com/architecture/icons/)"}</script>
+
+<script type="application/json" id="aws-diagram-model">{
+ "schemaVersion": 1,
+ "meta": {
+  "sources": [
+   {
+    "type": "cloudformation",
+    "origin": "code",
+    "path": "infra/career-coach.yaml",
+    "stacks": [
+     "career-coach"
+    ],
+    "scannedAt": "2026-10-12T17:55:05Z"
+   },
+   {
+    "type": "cloudformation",
+    "origin": "code",
+    "path": "infra/publish-image.yaml",
+    "stacks": [
+     "career-coach-publisher"
+    ],
+    "scannedAt": "2026-10-12T17:55:05Z"
+   }
+  ],
+  "title": "Career Coach on AWS",
+  "project": "career-coach",
+  "generatedAt": "2026-10-12T17:55:05Z",
+  "generator": "aws-architecture-diagram/scan.py",
+  "changelog": [
+   {
+    "date": "2026-10-12",
+    "summary": "Created from infra/career-coach.yaml, infra/publish-image.yaml, the publish workflow and backend/frontend code"
+   }
+  ],
+  "hiddenResources": {
+   "career-coach.Vpc": null,
+   "career-coach.GatewayAttachment": null,
+   "career-coach.PublicSubnet": null,
+   "career-coach.PrivateSubnet": null,
+   "career-coach.NatAddress": null,
+   "career-coach.PublicRoutes": null,
+   "career-coach.PublicDefaultRoute": null,
+   "career-coach.PublicSubnetRoutes": null,
+   "career-coach.PrivateRoutes": null,
+   "career-coach.PrivateDefaultRoute": null,
+   "career-coach.PrivateSubnetRoutes": null,
+   "career-coach.CoachSecurityGroup": null,
+   "career-coach.UserPoolClient": "career-coach.UserPool",
+   "career-coach.SignInUser": null,
+   "career-coach.CoachRole": null,
+   "career-coach.CoachInstanceProfile": null,
+   "career-coach.CoachLaunchTemplate": null,
+   "career-coach-publisher.GitHubOidcProvider": null,
+   "career-coach-publisher.PublishRole": null
+  },
+  "description": "An AI career coach each attendee deploys into their own AWS account from one CloudFormation template. The browser signs in with Amazon Cognito, then reaches a private EC2 server through CloudFront (VPC origin, HTTPS). The server runs the coach container (FastAPI + Strands Agents + React site), which calls Claude Haiku 5.5 on Amazon Bedrock, stores profiles, progress and chat memory in Amazon Bedrock AgentCore Memory, and checks advice with a web search. The container image is built by GitHub Actions and published to ECR Public from the maintainer's account.",
+  "notes": "Not drawn: the laptop/developer mode (backend on 127.0.0.1 with local JSONL memory or Ollama/Qwen3, optional AgentCore Memory and AWS Amplify hosting created by backend/scripts/*.py)."
+ },
+ "groups": [
+  {
+   "id": "cloud",
+   "type": "aws-cloud",
+   "label": "AWS Cloud",
+   "origin": "code",
+   "_auto": {
+    "label": "AWS Cloud",
+    "parent": null
+   }
+  },
+  {
+   "id": "acct-attendee",
+   "type": "account",
+   "label": "Attendee's AWS account",
+   "parent": "cloud",
+   "description": "Each workshop attendee deploys infra/career-coach.yaml (stack 'career-coach') into their own account."
+  },
+  {
+   "id": "region",
+   "type": "region",
+   "label": "us-east-1 or us-west-2",
+   "parent": "acct-attendee",
+   "origin": "code",
+   "_auto": {
+    "label": "Region",
+    "parent": "cloud"
+   },
+   "description": "The template's SupportedRegion rule only allows US East (N. Virginia) or US West (Oregon)."
+  },
+  {
+   "id": "career-coach.Vpc",
+   "type": "vpc",
+   "label": "Coach VPC (10.20.0.0/16)",
+   "parent": "region",
+   "details": {
+    "cidr": "10.20.0.0/16"
+   },
+   "origin": "code",
+   "_auto": {
+    "label": "VPC {'Fn::Sub': '${AWS::StackName}-vpc'}",
+    "parent": "region"
+   }
+  },
+  {
+   "id": "career-coach.Vpc/public",
+   "type": "subnet-public",
+   "label": "Public subnet (10.20.0.0/24)",
+   "parent": "career-coach.Vpc",
+   "origin": "code",
+   "details": {
+    "subnets": "PublicSubnet"
+   },
+   "_auto": {
+    "label": "Public subnets",
+    "parent": "career-coach.Vpc"
+   }
+  },
+  {
+   "id": "career-coach.Vpc/private",
+   "type": "subnet-private",
+   "label": "Private subnet (10.20.1.0/24)",
+   "parent": "career-coach.Vpc",
+   "origin": "code",
+   "details": {
+    "subnets": "PrivateSubnet"
+   },
+   "_auto": {
+    "label": "Private subnets",
+    "parent": "career-coach.Vpc"
+   },
+   "description": "Security group: inbound TCP 8000 only from the CloudFront origin-facing prefix list; outbound HTTPS 443 only."
+  },
+  {
+   "id": "acct-publisher",
+   "type": "account",
+   "label": "Maintainer's AWS account",
+   "parent": "cloud",
+   "description": "Deployed once by the workshop maintainer from infra/publish-image.yaml (stack 'career-coach-publisher'). Attendees never deploy this."
+  },
+  {
+   "id": "region-us-east-1",
+   "type": "region",
+   "label": "us-east-1",
+   "parent": "acct-publisher",
+   "description": "ECR Public repositories live in us-east-1 (template rule EcrPublicLivesInUsEast1)."
+  },
+  {
+   "id": "github",
+   "type": "external",
+   "label": "GitHub"
+  },
+  {
+   "id": "internet",
+   "type": "external",
+   "label": "Public internet"
+  }
+ ],
+ "nodes": [
+  {
+   "id": "career-coach.InternetGateway",
+   "service": "igw",
+   "label": "Internet gateway",
+   "kind": "Internet gateway",
+   "group": "career-coach.Vpc",
+   "origin": "code",
+   "details": {
+    "type": "AWS::EC2::InternetGateway",
+    "logicalId": "InternetGateway",
+    "stack": "career-coach"
+   },
+   "source": {
+    "file": "infra/career-coach.yaml"
+   },
+   "_auto": {
+    "label": "InternetGateway",
+    "group": "career-coach.Vpc",
+    "kind": "Internet gateway",
+    "source": {
+     "file": "infra/career-coach.yaml"
+    }
+   }
+  },
+  {
+   "id": "career-coach.NatGateway",
+   "service": "natgateway",
+   "label": "NAT gateway",
+   "kind": "NAT gateway",
+   "group": "career-coach.Vpc/public",
+   "origin": "code",
+   "details": {
+    "type": "AWS::EC2::NatGateway",
+    "logicalId": "NatGateway",
+    "stack": "career-coach",
+    "SubnetId": "→ PublicSubnet",
+    "AllocationId": "→ NatAddress.AllocationId"
+   },
+   "source": {
+    "file": "infra/career-coach.yaml"
+   },
+   "_auto": {
+    "label": "NatGateway",
+    "group": "career-coach.Vpc/public",
+    "kind": "NAT gateway",
+    "source": {
+     "file": "infra/career-coach.yaml"
+    }
+   },
+   "description": "Outbound path for the private server (image pull, AWS APIs, web search). Billed hourly."
+  },
+  {
+   "id": "career-coach.UserPool",
+   "service": "cognito",
+   "label": "Coach sign-in",
+   "kind": "Cognito user pool",
+   "group": "region",
+   "origin": "code",
+   "details": {
+    "type": "AWS::Cognito::UserPool",
+    "logicalId": "UserPool",
+    "stack": "career-coach",
+    "UserPoolName": "\u003ccomputed>",
+    "UsernameAttributes": "email",
+    "AutoVerifiedAttributes": "email",
+    "DeletionProtection": "INACTIVE"
+   },
+   "source": {
+    "file": "infra/career-coach.yaml"
+   },
+   "_auto": {
+    "label": "UserPool",
+    "group": "region",
+    "kind": "User pool",
+    "source": {
+     "file": "infra/career-coach.yaml"
+    }
+   },
+   "description": "Admin-created users only (no public sign-up): one user for the SignInEmail parameter, who gets a temporary password by email. App client 'career-coach-web' has no secret and uses USER_PASSWORD_AUTH; 60-minute tokens."
+  },
+  {
+   "id": "career-coach.CoachMemory",
+   "service": "bedrock-agentcore",
+   "label": "Coach memory",
+   "kind": "AgentCore Memory",
+   "group": "region",
+   "origin": "code",
+   "details": {
+    "type": "AWS::BedrockAgentCore::Memory",
+    "logicalId": "CoachMemory",
+    "stack": "career-coach",
+    "Name": "CareerCoachStack",
+    "Description": "Career Coach profiles, progress notes and chat memory",
+    "EventExpiryDuration": 365
+   },
+   "source": {
+    "file": "infra/career-coach.yaml"
+   },
+   "_auto": {
+    "label": "CareerCoachStack",
+    "group": "region",
+    "kind": "Memory",
+    "source": {
+     "file": "infra/career-coach.yaml"
+    }
+   },
+   "description": "Profile snapshots and progress notes (blob events) plus chat turns via AgentCoreMemorySessionManager. Long-term strategies: semantic facts, user preferences, session summaries. Events expire after 365 days."
+  },
+  {
+   "id": "career-coach.CoachInstance",
+   "service": "ec2",
+   "label": "Coach server",
+   "kind": "EC2 t4g (AL2023 arm64)",
+   "group": "career-coach.Vpc/private",
+   "origin": "code",
+   "details": {
+    "type": "AWS::EC2::Instance",
+    "logicalId": "CoachInstance",
+    "stack": "career-coach",
+    "folds": "AWS::EC2::LaunchTemplate, AWS::IAM::InstanceProfile",
+    "ImageId": "→ LatestAmiId",
+    "InstanceType": "→ InstanceType",
+    "SubnetId": "→ PrivateSubnet",
+    "IamInstanceProfile": "→ CoachInstanceProfile"
+   },
+   "source": {
+    "file": "infra/career-coach.yaml"
+   },
+   "_auto": {
+    "label": "CoachInstance",
+    "group": "career-coach.Vpc/private",
+    "kind": "EC2 instance",
+    "source": {
+     "file": "infra/career-coach.yaml"
+    }
+   },
+   "description": "Private instance (no public IP, IMDSv2 only, encrypted 20 GB gp3). User data pulls the coach image from ECR Public and runs it under systemd with Docker (--network host). The container is FastAPI + Strands Agents and also serves the built React site. Troubleshooting access is through SSM Session Manager.",
+   "notes": "Instance role grants: bedrock:InvokeModel(+WithResponseStream) on the inference profile, aws-marketplace:Subscribe via Bedrock, bedrock-agentcore:* on this stack's memory only, AmazonSSMManagedInstanceCore."
+  },
+  {
+   "id": "career-coach.CoachVpcOrigin",
+   "service": "cloudfront",
+   "label": "VPC origin",
+   "kind": "CloudFront VPC origin",
+   "group": "cloud",
+   "origin": "code",
+   "details": {
+    "type": "AWS::CloudFront::VpcOrigin",
+    "logicalId": "CoachVpcOrigin",
+    "stack": "career-coach"
+   },
+   "source": {
+    "file": "infra/career-coach.yaml"
+   },
+   "_auto": {
+    "label": "CoachVpcOrigin",
+    "group": "cloud",
+    "kind": "VpcOrigin",
+    "source": {
+     "file": "infra/career-coach.yaml"
+    }
+   },
+   "description": "Lets CloudFront reach the private instance on HTTP 8000 without a public IP or load balancer."
+  },
+  {
+   "id": "career-coach.CoachDistribution",
+   "service": "cloudfront",
+   "label": "CoachUrl distribution",
+   "kind": "CloudFront distribution",
+   "group": "cloud",
+   "origin": "code",
+   "details": {
+    "type": "AWS::CloudFront::Distribution",
+    "logicalId": "CoachDistribution",
+    "stack": "career-coach"
+   },
+   "source": {
+    "file": "infra/career-coach.yaml"
+   },
+   "_auto": {
+    "label": "CoachDistribution",
+    "group": "cloud",
+    "kind": "CloudFront distribution",
+    "source": {
+     "file": "infra/career-coach.yaml"
+    }
+   },
+   "description": "HTTPS front door (default *.cloudfront.net certificate). Caching disabled, compression off so streamed (SSE) replies flow; 60 s origin read timeout. Its domain is the stack's CoachUrl output."
+  },
+  {
+   "id": "users",
+   "service": "users",
+   "label": "Attendee (browser)",
+   "kind": "React web app",
+   "origin": "code",
+   "_auto": {
+    "label": "Users",
+    "group": null,
+    "kind": "Clients",
+    "source": null
+   },
+   "description": "Signs in to Cognito directly from the browser, then calls the coach API through CloudFront with the ID token."
+  },
+  {
+   "id": "career-coach-publisher.CoachImageRepository",
+   "service": "ecr",
+   "label": "Coach image",
+   "kind": "ECR Public repository",
+   "group": "region-us-east-1",
+   "origin": "code",
+   "details": {
+    "type": "AWS::ECR::PublicRepository",
+    "logicalId": "CoachImageRepository",
+    "stack": "career-coach-publisher",
+    "RepositoryName": "career-coach (default)"
+   },
+   "source": {
+    "file": "infra/publish-image.yaml"
+   },
+   "_auto": {
+    "label": "CoachImageRepository",
+    "group": "region-us-east-1",
+    "kind": "PublicRepository",
+    "source": {
+     "file": "infra/publish-image.yaml"
+    }
+   },
+   "description": "Public linux/arm64 image of the coach. Anyone can pull it, so attendees' stacks need no ECR permissions. Tags are never reused."
+  },
+  {
+   "id": "bedrock",
+   "service": "bedrock",
+   "label": "Claude Haiku 5.5",
+   "kind": "Amazon Bedrock",
+   "group": "region",
+   "description": "Called through the US cross-region inference profile us.anthropic.claude-haiku-5-5 (BedrockModelId parameter), so requests may be served from any US region. Used for profile synthesis (streamed structured output), chat, progress extraction and checks.",
+   "source": {
+    "file": "backend/coach/llm.py",
+    "line": 19
+   }
+  },
+  {
+   "id": "websearch",
+   "service": "internet",
+   "label": "Web search",
+   "kind": "ddgs (keyless) or Tavily API",
+   "group": "internet",
+   "description": "Verifies suggested next steps and chat replies. Uses the free ddgs metasearch by default, or api.tavily.com when the TavilyApiKey parameter is set.",
+   "source": {
+    "file": "backend/coach/search.py",
+    "line": 138
+   }
+  },
+  {
+   "id": "gha",
+   "service": "codebuild",
+   "glyph": "GHA",
+   "label": "Publish workflow",
+   "kind": "GitHub Actions (v* tags)",
+   "group": "github",
+   "description": "On a v* tag: runs backend and frontend tests, builds the arm64 image and pushes it. Signs in with OIDC as PublishRole, which trusts only this repository's v* tag builds.",
+   "source": {
+    "file": ".github/workflows/publish-image.yml"
+   }
+  }
+ ],
+ "edges": [
+  {
+   "id": "career-coach.CoachInstance->career-coach.CoachMemory",
+   "from": "career-coach.CoachInstance",
+   "to": "career-coach.CoachMemory",
+   "kind": "data",
+   "label": "events / records",
+   "origin": "code",
+   "details": {
+    "evidence": "UserData.Fn::Base64; IAM: bedrock-agentcore:*"
+   },
+   "_auto": {
+    "label": "reads/writes",
+    "kind": "data"
+   },
+   "source": {
+    "file": "backend/coach/memory/agentcore.py",
+    "line": 92
+   }
+  },
+  {
+   "id": "career-coach.CoachVpcOrigin->career-coach.CoachInstance",
+   "from": "career-coach.CoachVpcOrigin",
+   "to": "career-coach.CoachInstance",
+   "kind": "sync",
+   "label": "HTTP :8000",
+   "origin": "code",
+   "details": {
+    "evidence": "VpcOriginEndpointConfig.Arn"
+   },
+   "_auto": {
+    "label": "origin",
+    "kind": "sync"
+   }
+  },
+  {
+   "id": "career-coach.CoachDistribution->career-coach.CoachVpcOrigin",
+   "from": "career-coach.CoachDistribution",
+   "to": "career-coach.CoachVpcOrigin",
+   "kind": "sync",
+   "label": "all requests",
+   "origin": "code",
+   "details": {
+    "evidence": "DistributionConfig.Origins[0].VpcOriginConfig.VpcOriginId"
+   },
+   "_auto": {
+    "label": "origin",
+    "kind": "sync"
+   }
+  },
+  {
+   "id": "users->career-coach.UserPool",
+   "from": "users",
+   "to": "career-coach.UserPool",
+   "kind": "sync",
+   "label": "InitiateAuth",
+   "origin": "code",
+   "details": {
+    "evidence": "public entry point"
+   },
+   "_auto": {
+    "label": "sign-in",
+    "kind": "sync"
+   },
+   "source": {
+    "file": "frontend/src/api/auth.ts",
+    "line": 55
+   }
+  },
+  {
+   "id": "users->career-coach.CoachDistribution",
+   "from": "users",
+   "to": "career-coach.CoachDistribution",
+   "kind": "sync",
+   "label": "HTTPS (API + site, SSE)",
+   "origin": "code",
+   "details": {
+    "evidence": "public entry point"
+   },
+   "_auto": {
+    "label": "HTTPS",
+    "kind": "sync"
+   }
+  },
+  {
+   "id": "career-coach.CoachInstance->bedrock",
+   "from": "career-coach.CoachInstance",
+   "to": "bedrock",
+   "kind": "sync",
+   "label": "ConverseStream",
+   "source": {
+    "file": "backend/coach/bedrock.py",
+    "line": 79
+   }
+  },
+  {
+   "id": "career-coach.CoachInstance->career-coach.UserPool",
+   "from": "career-coach.CoachInstance",
+   "to": "career-coach.UserPool",
+   "kind": "sync",
+   "label": "fetch JWKS, verify JWT",
+   "source": {
+    "file": "backend/coach/auth.py",
+    "line": 42
+   }
+  },
+  {
+   "id": "career-coach.CoachInstance->career-coach.NatGateway",
+   "from": "career-coach.CoachInstance",
+   "to": "career-coach.NatGateway",
+   "kind": "network",
+   "label": "HTTPS :443 out"
+  },
+  {
+   "id": "career-coach.NatGateway->career-coach.InternetGateway",
+   "from": "career-coach.NatGateway",
+   "to": "career-coach.InternetGateway",
+   "kind": "network",
+   "label": "0.0.0.0/0"
+  },
+  {
+   "id": "career-coach.CoachInstance->websearch",
+   "from": "career-coach.CoachInstance",
+   "to": "websearch",
+   "kind": "sync",
+   "label": "search",
+   "description": "Via the NAT gateway.",
+   "source": {
+    "file": "backend/coach/search.py",
+    "line": 62
+   }
+  },
+  {
+   "id": "career-coach.CoachInstance->career-coach-publisher.CoachImageRepository",
+   "from": "career-coach.CoachInstance",
+   "to": "career-coach-publisher.CoachImageRepository",
+   "kind": "data",
+   "label": "docker pull (boot)",
+   "description": "User data pulls the ImageUri on first boot, via the NAT gateway. No credentials needed.",
+   "source": {
+    "file": "infra/career-coach.yaml"
+   }
+  },
+  {
+   "id": "gha->career-coach-publisher.CoachImageRepository",
+   "from": "gha",
+   "to": "career-coach-publisher.CoachImageRepository",
+   "kind": "data",
+   "label": "docker push",
+   "source": {
+    "file": ".github/workflows/publish-image.yml"
+   }
+  }
+ ],
+ "layout": {
+  "direction": "LR"
+ }
+}</script>
+
+<script>
+(function () {
+'use strict';
+
+// ---------------------------------------------------------------- constants
+const SVGNS = 'http://www.w3.org/2000/svg';
+const FONT = '"Amazon Ember", "Segoe UI", system-ui, -apple-system, Helvetica, Arial, sans-serif';
+const CELL_W = 164, CELL_H = 116, ICON = 52, ICON_TOP = 8;
+const PAD = 20, HEAD = 36, GAP_MAIN = 92, GAP_ISO = 36, GAP_CROSS = 24;
+const LABEL_FONT = '600 12.5px ' + FONT, SUB_FONT = '11px ' + FONT;
+
+const GROUP_STYLES = {
+  'aws-cloud':       { name: 'AWS Cloud',            tag: 'AWS',  stroke: '#232F3E' },
+  'account':         { name: 'AWS account',          tag: 'ACCT', stroke: '#E7157B' },
+  'region':          { name: 'Region',               tag: 'RGN',  stroke: '#00A4A6', dash: '7 5' },
+  'vpc':             { name: 'VPC',                  tag: 'VPC',  stroke: '#8C4FFF' },
+  'az':              { name: 'Availability Zone',    tag: 'AZ',   stroke: '#00A4A6', dash: '9 5' },
+  'subnet-public':   { name: 'Public subnet',        tag: 'PUB',  stroke: '#7AA116', fill: '#F2F8E9' },
+  'subnet-private':  { name: 'Private subnet',       tag: 'PRIV', stroke: '#00A4A6', fill: '#E6F6F7' },
+  'subnet-isolated': { name: 'Isolated subnet',      tag: 'ISO',  stroke: '#5A6B86', fill: '#EEF1F5' },
+  'security-group':  { name: 'Security group',       tag: 'SG',   stroke: '#DD344C', dash: '4 3' },
+  'autoscaling':     { name: 'Auto Scaling group',   tag: 'ASG',  stroke: '#ED7100', dash: '7 4' },
+  'cluster':         { name: 'Cluster',              tag: 'CLU',  stroke: '#ED7100' },
+  'stack':           { name: 'Stack',                tag: 'STK',  stroke: '#7D8998', dash: '2 4' },
+  'on-prem':         { name: 'Corporate data center',tag: 'DC',   stroke: '#5A6B86' },
+  'external':        { name: 'External',             tag: 'EXT',  stroke: '#5A6B86', dash: '7 5' },
+  'generic':         { name: 'Group',                tag: 'GRP',  stroke: '#7D8998', dash: '7 5' }
+};
+
+const EDGE_KINDS = {
+  sync:       { name: 'Synchronous request',     color: '#232F3E', dash: '',    width: 1.7 },
+  async:      { name: 'Async / event / message', color: '#E7157B', dash: '8 5', width: 1.7 },
+  data:       { name: 'Data read / write',       color: '#2E73B8', dash: '',    width: 1.5 },
+  network:    { name: 'Network path',            color: '#8C4FFF', dash: '',    width: 1.5 },
+  dependency: { name: 'Dependency / reference',  color: '#8D99A8', dash: '2 4', width: 1.2, hidden: true },
+  permission: { name: 'IAM permission / trust',  color: '#DD344C', dash: '2 3', width: 1.2, hidden: true }
+};
+
+const STATUS = {
+  'both':         { name: 'In code and deployed',          color: '#1D8102', sym: '✓' },
+  'code-only':    { name: 'In code, not found in account',  color: '#D97706', sym: '↑' },
+  'account-only': { name: 'In account, not in code',        color: '#8C4FFF', sym: '!' },
+  'drifted':      { name: 'Differs between code and account', color: '#DD344C', sym: '≠' }
+};
+
+// ---------------------------------------------------------------- bootstrap
+const $ = s => document.querySelector(s);
+const PRISTINE = document.documentElement.cloneNode(true);
+const CATALOG = JSON.parse(document.getElementById('aws-service-catalog').textContent);
+let ICONS = {};
+try { ICONS = JSON.parse(document.getElementById('aws-service-icons').textContent) || {}; } catch (err) { ICONS = {}; }
+ICONS.services = ICONS.services || {}; ICONS.groups = ICONS.groups || {};
+let MODEL;
+try {
+  MODEL = JSON.parse(document.getElementById('aws-diagram-model').textContent);
+  if (!MODEL || typeof MODEL !== 'object') throw new Error('model is not an object');
+} catch (err) {
+  const f = $('#fatal');
+  f.style.display = 'flex';
+  f.innerHTML = '<div><b>No diagram model is embedded in this page.</b><br><br>Render a model into this template with<br><code>python scripts/diagram.py render model.json -o diagram.html</code><br><br><span style="font-size:12px">(' + esc(err.message) + ')</span></div>';
+  $('#hint').style.display = 'none';
+  return;
+}
+MODEL.meta = MODEL.meta || {};
+MODEL.groups = Array.isArray(MODEL.groups) ? MODEL.groups : [];
+MODEL.nodes = Array.isArray(MODEL.nodes) ? MODEL.nodes : [];
+MODEL.edges = Array.isArray(MODEL.edges) ? MODEL.edges : [];
+MODEL.edges.forEach((e, i) => { if (!e.id) e.id = 'e' + (i + 1); if (!e.kind) e.kind = 'sync'; });
+
+const NODE_BY_ID = new Map(MODEL.nodes.map(n => [n.id, n]));
+const GROUP_BY_ID = new Map(MODEL.groups.map(g => [g.id, g]));
+const EDGE_BY_ID = new Map(MODEL.edges.map(e => [e.id, e]));
+const L = MODEL.layout || {};
+const S = {
+  dir: L.direction === 'TB' ? 'TB' : 'LR',
+  offsets: JSON.parse(JSON.stringify(L.offsets || {})),
+  collapsed: new Set(Array.isArray(L.collapsed) ? L.collapsed : MODEL.groups.filter(g => g.collapsed).map(g => g.id)),
+  hiddenKinds: new Set(Array.isArray(L.hiddenEdgeKinds) ? L.hiddenEdgeKinds : Object.keys(EDGE_KINDS).filter(k => EDGE_KINDS[k].hidden)),
+  showStatus: MODEL.nodes.some(n => n.status && n.status !== 'both'),
+  showLabels: L.showEdgeLabels !== false,
+  serviceIcons: L.serviceIcons !== false,
+  selected: null,
+  search: '',
+  view: { x: 0, y: 0, k: 1 }
+};
+let LAYOUT = null;
+
+// ---------------------------------------------------------------- helpers
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+function el(tag, attrs, parent) {
+  const e = document.createElementNS(SVGNS, tag);
+  for (const k in attrs) if (attrs[k] !== null && attrs[k] !== undefined && attrs[k] !== '') e.setAttribute(k, attrs[k]);
+  if (parent) parent.appendChild(e);
+  return e;
+}
+const mctx = document.createElement('canvas').getContext('2d');
+function measure(text, font) { mctx.font = font; return mctx.measureText(text).width; }
+function fit(s, font, maxW) {
+  if (measure(s, font) <= maxW) return s;
+  s = s.replace(/…$/, '');
+  while (s.length > 1 && measure(s + '…', font) > maxW) s = s.slice(0, -1);
+  return s + '…';
+}
+function wrap(text, font, maxW, maxLines) {
+  const words = String(text ?? '').trim().split(/\s+/).filter(Boolean);
+  let lines = [], cur = '';
+  for (const w of words) {
+    const t = cur ? cur + ' ' + w : w;
+    if (cur && measure(t, font) > maxW) { lines.push(cur); cur = w; } else cur = t;
+  }
+  if (cur) lines.push(cur);
+  const over = lines.length > maxLines;
+  if (over) lines = lines.slice(0, maxLines);
+  return lines.map((l, i) => fit(l + (over && i === lines.length - 1 ? '…' : ''), font, maxW));
+}
+function svc(n) { return CATALOG.services[n.service] || null; }
+function catOf(n) { return n.category || (svc(n) || {}).cat || (n.service ? 'general' : 'general'); }
+function nodeColor(n) { return n.color || (CATALOG.categories[catOf(n)] || CATALOG.categories.general).color; }
+function glyphOf(n) {
+  if (n.glyph) return n.glyph;
+  const s = svc(n);
+  if (s) return s.glyph;
+  return String(n.service || '?').replace(/[^a-z0-9]/gi, '').slice(0, 3).toUpperCase() || '?';
+}
+const ICON_URI = new Map();
+function svgUri(svgText) {
+  if (!ICON_URI.has(svgText)) ICON_URI.set(svgText, 'data:image/svg+xml,' + encodeURIComponent(svgText));
+  return ICON_URI.get(svgText);
+}
+// node.icon (explicit URL / data URI) wins; otherwise the official icon for the service, if embedded
+function iconOf(n) {
+  if (n.icon) return n.icon;
+  if (!S.serviceIcons || n.glyph || n.color) return null;   // an explicit glyph/color asks for the tile look
+  const s = ICONS.services[n.service];
+  return s ? svgUri(s) : null;
+}
+function groupIconOf(g) {
+  if (!S.serviceIcons || g.tag || g.color) return null;
+  const s = ICONS.groups[g.type];
+  return s ? svgUri(s) : null;
+}
+function groupStyle(g) { return GROUP_STYLES[g.type] || GROUP_STYLES.generic; }
+function edgeStyle(kind) { return EDGE_KINDS[kind] || EDGE_KINDS.sync; }
+function download(content, name, type) {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+function slug() { return String(MODEL.meta.title || 'aws-architecture').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'aws-architecture'; }
+
+// ---------------------------------------------------------------- layout
+// Compound layered layout: every container (group) lays out its direct children
+// (nodes and sub-groups) in ranked columns derived from the edges between them.
+function computeLayout() {
+  const root = { id: '__root', isGroup: true, isRoot: true, items: [], parent: null };
+  const G = new Map(), N = new Map();
+  for (const g of MODEL.groups) if (!G.has(g.id)) G.set(g.id, { id: g.id, isGroup: true, src: g, items: [] });
+  for (const it of G.values()) {
+    let p = G.get(it.src.parent) || null, c = p, guard = 0;
+    while (c && guard++ < 10000) { if (c === it) { p = null; break; } c = G.get(c.src.parent); }
+    it.parent = p || root;
+  }
+  for (const it of G.values()) it.parent.items.push(it);
+  for (const n of MODEL.nodes) {
+    if (N.has(n.id)) continue;
+    const it = { id: n.id, isGroup: false, src: n, parent: G.get(n.group) || root };
+    it.parent.items.push(it);
+    N.set(n.id, it);
+  }
+
+  const topCollapsed = it => { let top = null; for (let c = it.parent; c && !c.isRoot; c = c.parent) if (S.collapsed.has(c.id)) top = c; return top; };
+  const rep = id => { const it = N.get(id) || G.get(id); if (!it) return null; return topCollapsed(it) || it; };
+  const isAncestor = (a, b) => { for (let c = b.parent; c; c = c.parent) if (c === a) return true; return false; };
+
+  // Aggregate visible edges onto their visible representatives.
+  const aggMap = new Map();
+  for (const e of MODEL.edges) {
+    if (S.hiddenKinds.has(e.kind)) continue;
+    const a = rep(e.from), b = rep(e.to);
+    if (!a || !b || a === b || isAncestor(a, b) || isAncestor(b, a)) continue;
+    const key = a.id + '\u0000' + b.id;
+    if (!aggMap.has(key)) aggMap.set(key, { key, a, b, edges: [] });
+    aggMap.get(key).edges.push(e);
+  }
+  const AGG = [...aggMap.values()];
+
+  const LR = S.dir === 'LR';
+  const mainSize = it => LR ? it.w : it.h, crossSize = it => LR ? it.h : it.w;
+  const childUnder = (C, it) => { for (let x = it; x; x = x.parent) if (x.parent === C) return x; return null; };
+
+  function measureItem(it) {
+    if (!it.isGroup || (!it.isRoot && S.collapsed.has(it.id))) { it.leaf = true; it.w = CELL_W; it.h = CELL_H; return; }
+    it.leaf = false;
+    for (const ch of it.items) measureItem(ch);
+    arrange(it);
+  }
+
+  function arrange(C) {
+    const items = C.items, n = items.length;
+    const padX = C.isRoot ? 0 : PAD, padTop = C.isRoot ? 0 : HEAD + 6, padBottom = C.isRoot ? 0 : PAD;
+    const labelW = C.isRoot ? 0 : measure(String(C.src.label || C.src.id), '700 12.5px ' + FONT) + 70;
+    if (!n) { C.w = Math.max(labelW, 180); C.h = HEAD + 44; return; }
+    const index = new Map(items.map((x, i) => [x, i]));
+    const out = items.map(() => []), touched = new Uint8Array(n), seen = new Set();
+    for (const ae of AGG) {
+      const a = childUnder(C, ae.a), b = childUnder(C, ae.b);
+      if (!a || !b || a === b) continue;
+      const ia = index.get(a), ib = index.get(b), k = ia + ':' + ib;
+      if (seen.has(k)) continue;
+      seen.add(k); out[ia].push(ib); touched[ia] = touched[ib] = 1;
+    }
+    // Break cycles (DFS from sources first), then longest-path ranking.
+    const indeg0 = new Array(n).fill(0);
+    out.forEach(vs => vs.forEach(v => indeg0[v]++));
+    const st = new Uint8Array(n), dag = items.map(() => []);
+    const visit = u => { st[u] = 1; for (const v of out[u]) { if (st[v] === 1) continue; dag[u].push(v); if (!st[v]) visit(v); } st[u] = 2; };
+    for (let u = 0; u < n; u++) if (touched[u] && !indeg0[u] && !st[u]) visit(u);
+    for (let u = 0; u < n; u++) if (touched[u] && !st[u]) visit(u);
+    const indeg = new Array(n).fill(0), rank = new Array(n).fill(0), preds = items.map(() => []);
+    dag.forEach((vs, u) => vs.forEach(v => { indeg[v]++; preds[v].push(u); }));
+    const q = [];
+    for (let u = 0; u < n; u++) if (touched[u] && !indeg[u]) q.push(u);
+    while (q.length) { const u = q.shift(); for (const v of dag[u]) { rank[v] = Math.max(rank[v], rank[u] + 1); if (!--indeg[v]) q.push(v); } }
+    let maxRank = -1;
+    for (let u = 0; u < n; u++) if (touched[u]) maxRank = Math.max(maxRank, rank[u]);
+    // Children with no siblings to connect to but with edges leaving the container are pulled
+    // toward the side their outside peers are on (incoming -> first column, outgoing -> last).
+    const extIn = new Uint8Array(n), extOut = new Uint8Array(n);
+    for (const ae of AGG) {
+      const a = childUnder(C, ae.a), b = childUnder(C, ae.b);
+      if (a && !b) extOut[index.get(a)] = 1;
+      if (b && !a) extIn[index.get(b)] = 1;
+    }
+    for (let u = 0; u < n; u++) {
+      if (touched[u] || !(extIn[u] || extOut[u])) continue;
+      touched[u] = 1;
+      rank[u] = extIn[u] ? 0 : Math.max(maxRank, 0);
+    }
+    for (let u = 0; u < n; u++) if (touched[u]) maxRank = Math.max(maxRank, rank[u]);
+    const cols = Array.from({ length: maxRank + 1 }, () => []);
+    for (let u = 0; u < n; u++) if (touched[u]) cols[rank[u]].push(u);
+    // Barycenter ordering sweeps to reduce crossings.
+    const pos = new Float64Array(n);
+    const setPos = c => c.forEach((u, k) => { pos[u] = k - (c.length - 1) / 2; });
+    cols.forEach(setPos);
+    const avg = a => a.reduce((s, v) => s + pos[v], 0) / a.length;
+    for (let pass = 0; pass < 4; pass++) {
+      for (let r = 1; r < cols.length; r++) { const key = new Map(cols[r].map(u => [u, preds[u].length ? avg(preds[u]) : pos[u]])); cols[r].sort((x, y) => key.get(x) - key.get(y)); setPos(cols[r]); }
+      for (let r = cols.length - 2; r >= 0; r--) { const key = new Map(cols[r].map(u => [u, dag[u].length ? avg(dag[u]) : pos[u]])); cols[r].sort((x, y) => key.get(x) - key.get(y)); setPos(cols[r]); }
+    }
+    // Ranked block: one column (LR) / row (TB) per rank.
+    const ranked = cols.filter(c => c.length);
+    const colMain = ranked.map(c => Math.max(...c.map(u => mainSize(items[u]))));
+    const colCross = ranked.map(c => c.reduce((s, u) => s + crossSize(items[u]), 0) + GAP_CROSS * (c.length - 1));
+    const blockCross = ranked.length ? Math.max(...colCross) : 0;
+    const put = (it, mm, cc) => { if (LR) { it.rx = padX + mm; it.ry = padTop + cc; } else { it.rx = padX + cc; it.ry = padTop + mm; } };
+    let m = 0;
+    ranked.forEach((c, k) => {
+      let x = (blockCross - colCross[k]) / 2;
+      for (const u of c) { const it = items[u]; put(it, m + (colMain[k] - mainSize(it)) / 2, x); x += crossSize(it) + GAP_CROSS; }
+      m += colMain[k] + (k < ranked.length - 1 ? GAP_MAIN : 0);
+    });
+    const blockMain = m;
+    // Unconnected children are packed in lines beside the flow (below it for LR, right of it for TB),
+    // so edges between ranked columns never pass through them.
+    const iso = [];
+    for (let u = 0; u < n; u++) if (!touched[u]) iso.push(u);
+    let isoMain = 0, isoCross = 0;
+    if (iso.length) {
+      const per = ranked.length
+        ? Math.max(ranked.length, Math.ceil(Math.sqrt(iso.length)))
+        : Math.max(1, Math.ceil(LR ? Math.sqrt(iso.length * 1.6) : Math.sqrt(iso.length / 1.6)));
+      let cc = ranked.length ? blockCross + GAP_CROSS * 2 : 0;
+      for (let k = 0; k < iso.length; k += per) {
+        const line = iso.slice(k, k + per);
+        let mm = 0, lineCross = 0;
+        for (const u of line) { const it = items[u]; put(it, mm, cc); mm += mainSize(it) + GAP_ISO; lineCross = Math.max(lineCross, crossSize(it)); }
+        isoMain = Math.max(isoMain, mm - GAP_ISO);
+        cc += lineCross + GAP_CROSS;
+      }
+      isoCross = cc - GAP_CROSS;
+    }
+    const totalMain = Math.max(blockMain, isoMain), totalCross = Math.max(blockCross, isoCross);
+    const contentW = LR ? totalMain : totalCross, contentH = LR ? totalCross : totalMain;
+    C.w = Math.max(padX * 2 + contentW, labelW);
+    C.h = padTop + contentH + padBottom;
+    if (!C.isRoot && C.w > padX * 2 + contentW) {   // center content under a wide header label
+      const shift = (C.w - padX * 2 - contentW) / 2;
+      items.forEach(it => { it.rx += shift; });
+    }
+  }
+
+  function place(it, x, y) {
+    const o = S.offsets[it.id];
+    if (o && !it.isRoot) { x += o.dx || 0; y += o.dy || 0; }
+    it.x = x; it.y = y;
+    if (!it.leaf) for (const ch of it.items) place(ch, x + ch.rx, y + ch.ry);
+  }
+  function fitGroups(it) {
+    if (it.leaf) return;
+    for (const ch of it.items) fitGroups(ch);
+    if (it.isRoot || !it.items.length) return;
+    let x0 = it.x, y0 = it.y, x1 = it.x + it.w, y1 = it.y + it.h;
+    for (const ch of it.items) {
+      x0 = Math.min(x0, ch.x - PAD); y0 = Math.min(y0, ch.y - HEAD - 6);
+      x1 = Math.max(x1, ch.x + ch.w + PAD); y1 = Math.max(y1, ch.y + ch.h + PAD);
+    }
+    it.x = x0; it.y = y0; it.w = x1 - x0; it.h = y1 - y0;
+  }
+
+  measureItem(root);
+  place(root, 0, 0);
+  fitGroups(root);
+  let bx0 = Infinity, by0 = Infinity, bx1 = -Infinity, by1 = -Infinity;
+  for (const it of root.items) { bx0 = Math.min(bx0, it.x); by0 = Math.min(by0, it.y); bx1 = Math.max(bx1, it.x + it.w); by1 = Math.max(by1, it.y + it.h); }
+  if (!isFinite(bx0)) { bx0 = by0 = 0; bx1 = by1 = 100; }
+  return { root, G, N, AGG, rep, bbox: { x: bx0, y: by0, w: bx1 - bx0, h: by1 - by0 } };
+}
+
+// ---------------------------------------------------------------- edge geometry
+function anchorBox(it) {
+  if (it.leaf) {
+    const x = it.x + (CELL_W - ICON) / 2, y = it.y + ICON_TOP;
+    return { x, y, w: ICON, h: ICON, cx: x + ICON / 2, cy: y + ICON / 2, bottom: it.y + CELL_H - 6 };
+  }
+  return { x: it.x, y: it.y, w: it.w, h: it.h, cx: it.x + it.w / 2, cy: it.y + it.h / 2, bottom: it.y + it.h };
+}
+function sidePoint(b, side) {
+  switch (side) {
+    case 'r': return [b.x + b.w, b.cy, 1, 0];
+    case 'l': return [b.x, b.cy, -1, 0];
+    case 't': return [b.cx, b.y, 0, -1];
+    default:  return [b.cx, b.bottom, 0, 1];
+  }
+}
+function route(ae, offset) {
+  const A = anchorBox(ae.a), B = anchorBox(ae.b);
+  const dx = B.cx - A.cx, dy = B.cy - A.cy;
+  let sa, sb;
+  const horizontal = S.dir === 'LR' ? Math.abs(dx) > 50 : !(Math.abs(dy) > 50);
+  if (horizontal) { sa = dx >= 0 ? 'r' : 'l'; sb = dx >= 0 ? 'l' : 'r'; }
+  else { sa = dy >= 0 ? 'b' : 't'; sb = dy >= 0 ? 't' : 'b'; }
+  const p0 = sidePoint(A, sa), p3 = sidePoint(B, sb);
+  // perpendicular offset for parallel edges between the same pair
+  if (offset) {
+    const px = p0[3] !== 0 ? 1 : 0, py = p0[2] !== 0 ? 1 : 0;
+    p0[0] += px * offset; p0[1] += py * offset; p3[0] += px * offset; p3[1] += py * offset;
+  }
+  const dist = Math.hypot(p3[0] - p0[0], p3[1] - p0[1]);
+  const k = Math.max(28, Math.min(170, dist * 0.42));
+  const c1 = [p0[0] + p0[2] * k, p0[1] + p0[3] * k], c2 = [p3[0] + p3[2] * k, p3[1] + p3[3] * k];
+  const mid = [(p0[0] + 3 * c1[0] + 3 * c2[0] + p3[0]) / 8, (p0[1] + 3 * c1[1] + 3 * c2[1] + p3[1]) / 8];
+  return { d: `M${p0[0]},${p0[1]} C${c1[0]},${c1[1]} ${c2[0]},${c2[1]} ${p3[0]},${p3[1]}`, mid };
+}
+
+// ---------------------------------------------------------------- rendering
+const svg = $('#diagram');
+let vp, defs;
+const markerIds = new Map();
+function marker(color) {
+  if (markerIds.has(color)) return markerIds.get(color);
+  const id = 'arrow-' + markerIds.size;
+  const m = el('marker', { id, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 11, markerHeight: 11, orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse' }, defs);
+  el('path', { d: 'M0,0 L10,5 L0,10 z', fill: color }, m);
+  markerIds.set(color, id);
+  return id;
+}
+
+function render() {
+  LAYOUT = computeLayout();
+  svg.textContent = '';
+  markerIds.clear();
+  defs = el('defs', {}, svg);
+  vp = el('g', { id: 'viewport', 'font-family': FONT }, svg);
+  const gLayer = el('g', { class: 'layer-groups' }, vp);
+  const eLayer = el('g', { class: 'layer-edges' }, vp);
+  const nLayer = el('g', { class: 'layer-nodes' }, vp);
+  const lLayer = el('g', { class: 'layer-labels' }, vp);
+
+  const walk = it => {
+    for (const ch of it.items) {
+      if (ch.isGroup && !ch.leaf) { drawGroup(ch, gLayer); walk(ch); }
+      else if (ch.isGroup) drawCollapsed(ch, nLayer);
+      else drawNode(ch, nLayer);
+    }
+  };
+  walk(LAYOUT.root);
+
+  // parallel-edge offsets keyed by unordered pair
+  const pairs = new Map();
+  for (const ae of LAYOUT.AGG) { const k = [ae.a.id, ae.b.id].sort().join('\u0000'); if (!pairs.has(k)) pairs.set(k, []); pairs.get(k).push(ae); }
+  for (const list of pairs.values()) list.forEach((ae, i) => { ae.offset = (i - (list.length - 1) / 2) * 18; });
+  for (const ae of LAYOUT.AGG) drawEdge(ae, eLayer, lLayer);
+  applyView();
+  highlight();
+}
+
+function drawGroup(it, layer) {
+  const g = it.src, st = groupStyle(g), color = g.color || st.stroke;
+  const grp = el('g', { class: 'grp', 'data-gid': it.id }, layer);
+  el('rect', { class: 'body', x: it.x, y: it.y, width: it.w, height: it.h, rx: 3, fill: g.fill || st.fill || 'none', stroke: color, 'stroke-width': 1.6, 'stroke-dasharray': st.dash }, grp);
+  const head = el('g', { class: 'grp-head', 'data-drag': it.id, 'data-sel': 'group:' + it.id }, grp);
+  el('rect', { x: it.x, y: it.y, width: it.w, height: HEAD - 4, fill: 'transparent' }, head);
+  const tag = g.tag || st.tag, gicon = groupIconOf(g);
+  let tw;
+  if (gicon) {
+    tw = 24;
+    el('image', { href: gicon, x: it.x, y: it.y, width: 24, height: 24 }, head);
+  } else {
+    tw = Math.max(28, measure(tag, '700 10px ' + FONT) + 12);
+    el('rect', { x: it.x, y: it.y, width: tw, height: 24, fill: color }, head);
+    const t = el('text', { x: it.x + tw / 2, y: it.y + 16, 'text-anchor': 'middle', 'font-size': 10, 'font-weight': 700, fill: '#fff' }, head);
+    t.textContent = tag;
+  }
+  const lbl = el('text', { x: it.x + tw + 8, y: it.y + 16.5, 'font-size': 12.5, 'font-weight': 700, fill: '#232F3E' }, head);
+  lbl.textContent = fit(String(g.label || g.id), '700 12.5px ' + FONT, Math.max(40, it.w - tw - 16));
+  el('title', {}, head).textContent = `${st.name}: ${g.label || g.id}\nDouble-click to collapse`;
+}
+
+function drawStatusBadge(g, n, ix, iy) {
+  if (!S.showStatus || !n.status || n.status === 'both' || !STATUS[n.status]) return;
+  const s = STATUS[n.status];
+  el('circle', { cx: ix + ICON - 1, cy: iy + 1, r: 9, fill: s.color, stroke: '#fff', 'stroke-width': 2 }, g);
+  const t = el('text', { x: ix + ICON - 1, y: iy + 5, 'text-anchor': 'middle', 'font-size': 11, 'font-weight': 700, fill: '#fff' }, g);
+  t.textContent = s.sym;
+}
+
+function drawLabels(g, label, sub) {
+  const lines = wrap(label, LABEL_FONT, CELL_W - 8, 2);
+  let y = ICON_TOP + ICON + 17;
+  for (const line of lines) {
+    const t = el('text', { x: CELL_W / 2, y, 'text-anchor': 'middle', 'font-size': 12.5, 'font-weight': 600, fill: '#16191F' }, g);
+    t.textContent = line; y += 15;
+  }
+  if (sub) {
+    const t = el('text', { x: CELL_W / 2, y: y + 0.5, 'text-anchor': 'middle', 'font-size': 11, fill: '#5F6B7A' }, g);
+    t.textContent = fit(sub, SUB_FONT, CELL_W - 8);
+  }
+}
+
+function drawNode(it, layer) {
+  const n = it.src, color = nodeColor(n);
+  const g = el('g', { class: 'node', 'data-id': it.id, 'data-drag': it.id, 'data-sel': 'node:' + it.id, transform: `translate(${it.x},${it.y})` }, layer);
+  el('rect', { x: 0, y: 0, width: CELL_W, height: CELL_H, fill: 'transparent' }, g);
+  const ix = (CELL_W - ICON) / 2, iy = ICON_TOP;
+  const notDeployed = S.showStatus && n.status === 'code-only';
+  const href = iconOf(n);
+  if (href) {
+    el('image', { class: 'icon', href, x: ix, y: iy, width: ICON, height: ICON, opacity: notDeployed ? 0.45 : null }, g);
+    el('rect', { class: 'ring', x: ix - 3, y: iy - 3, width: ICON + 6, height: ICON + 6, rx: 6, fill: 'none', stroke: notDeployed ? color : 'none', 'stroke-width': notDeployed ? 2 : null, 'stroke-dasharray': notDeployed ? '5 3' : null }, g);
+  } else {
+    el('rect', { class: 'icon', x: ix, y: iy, width: ICON, height: ICON, rx: 10, fill: notDeployed ? '#fff' : color, stroke: notDeployed ? color : 'none', 'stroke-width': notDeployed ? 2 : null, 'stroke-dasharray': notDeployed ? '5 3' : null }, g);
+    const glyph = glyphOf(n);
+    const len = [...glyph].length;
+    const size = len <= 1 ? 30 : len === 2 ? 20 : len === 3 ? 16 : 13;
+    const t = el('text', { x: CELL_W / 2, y: iy + ICON / 2 + size * 0.36, 'text-anchor': 'middle', 'font-size': size, 'font-weight': 700, fill: notDeployed ? color : '#fff' }, g);
+    t.textContent = glyph;
+  }
+  drawStatusBadge(g, n, ix, iy);
+  if (n.notes) {   // note marker so annotations are discoverable without opening the panel
+    el('circle', { cx: ix + 1, cy: iy + 1, r: 7, fill: '#0972D3', stroke: '#fff', 'stroke-width': 2 }, g);
+    const t = el('text', { x: ix + 1, y: iy + 4.5, 'text-anchor': 'middle', 'font-size': 9, 'font-weight': 700, fill: '#fff' }, g);
+    t.textContent = 'i';
+  }
+  drawLabels(g, n.label || n.id, n.kind || (svc(n) || {}).name || n.service);
+  const s = svc(n);
+  el('title', {}, g).textContent = [n.label || n.id, n.kind || (s && s.name) || n.service, n.status && STATUS[n.status] ? STATUS[n.status].name : '', n.notes ? 'Note: ' + n.notes : ''].filter(Boolean).join('\n');
+}
+
+function countNodes(it) { let c = 0; const w = x => { for (const ch of x.items) { if (ch.isGroup) w(ch); else c++; } }; w(it); return c; }
+
+function drawCollapsed(it, layer) {
+  const gsrc = it.src, st = groupStyle(gsrc), color = gsrc.color || st.stroke;
+  const g = el('g', { class: 'node', 'data-id': it.id, 'data-drag': it.id, 'data-sel': 'group:' + it.id, transform: `translate(${it.x},${it.y})` }, layer);
+  el('rect', { x: 0, y: 0, width: CELL_W, height: CELL_H, fill: 'transparent' }, g);
+  const ix = (CELL_W - ICON) / 2, iy = ICON_TOP;
+  el('rect', { x: ix + 5, y: iy + 5, width: ICON, height: ICON, rx: 10, fill: '#fff', stroke: color, 'stroke-width': 1.5, 'stroke-dasharray': '4 3' }, g);
+  el('rect', { class: 'icon', x: ix, y: iy, width: ICON, height: ICON, rx: 10, fill: gsrc.fill || st.fill || '#fff', stroke: color, 'stroke-width': 2, 'stroke-dasharray': st.dash }, g);
+  const count = countNodes(it);
+  const t = el('text', { x: CELL_W / 2, y: iy + ICON / 2 + 6, 'text-anchor': 'middle', 'font-size': 16, 'font-weight': 700, fill: color }, g);
+  t.textContent = count;
+  drawLabels(g, gsrc.label || gsrc.id, `${st.name} · collapsed`);
+  el('title', {}, g).textContent = `${st.name}: ${gsrc.label || gsrc.id}\n${count} resources — double-click to expand`;
+}
+
+function edgeLabel(ae) {
+  const labels = [...new Set(ae.edges.map(e => e.label).filter(Boolean))];
+  if (!labels.length) return ae.edges.length > 1 ? `×${ae.edges.length}` : '';
+  return labels.length > 2 ? labels.slice(0, 2).join(', ') + ` +${labels.length - 2}` : labels.join(', ');
+}
+function edgeColor(ae) {
+  const e = ae.edges[0];
+  if (S.showStatus && ae.edges.every(x => x.status === 'code-only')) return STATUS['code-only'].color;
+  if (S.showStatus && ae.edges.every(x => x.status === 'account-only')) return STATUS['account-only'].color;
+  return e.color || edgeStyle(e.kind).color;
+}
+
+function drawEdge(ae, layer, labelLayer) {
+  const e = ae.edges[0], st = edgeStyle(e.kind), color = edgeColor(ae);
+  const r = route(ae, ae.offset || 0);
+  const ids = ae.edges.map(x => x.id).join(' ');
+  const g = el('g', { class: 'edge', 'data-a': ae.a.id, 'data-b': ae.b.id, 'data-edges': ids, 'data-sel': 'edge:' + e.id }, layer);
+  el('path', { d: r.d, fill: 'none', stroke: 'transparent', 'stroke-width': 12 }, g);
+  const mk = 'url(#' + marker(color) + ')';
+  el('path', { class: 'line', d: r.d, fill: 'none', stroke: color, 'stroke-width': st.width, 'stroke-dasharray': st.dash, 'marker-end': mk, 'marker-start': ae.edges.some(x => x.bidirectional) ? mk : null }, g);
+  el('title', {}, g).textContent = ae.edges.map(x => `${labelOf(x.from)} → ${labelOf(x.to)}${x.label ? ' : ' + x.label : ''} (${edgeStyle(x.kind).name})`).join('\n');
+  const text = S.showLabels ? edgeLabel(ae) : '';
+  if (text) {
+    const lg = el('g', { class: 'elabel', 'data-a': ae.a.id, 'data-b': ae.b.id, 'data-sel': 'edge:' + e.id }, labelLayer);
+    const t = el('text', { x: r.mid[0], y: r.mid[1] + 4, 'text-anchor': 'middle', 'font-size': 11, fill: '#414D5C', stroke: '#fff', 'stroke-width': 4, 'stroke-linejoin': 'round', 'paint-order': 'stroke' }, lg);
+    t.textContent = fit(text, '11px ' + FONT, 180);
+  }
+}
+function labelOf(id) { const n = NODE_BY_ID.get(id) || GROUP_BY_ID.get(id); return n ? (n.label || n.id) : id; }
+
+// ---------------------------------------------------------------- highlight / selection
+function nodeMatches(n, q) {
+  const hay = [n.id, n.label, n.service, n.kind, n.arn, n.description, svc(n) && svc(n).name, ...(n.tags ? Object.entries(n.tags).flat() : [])].filter(Boolean).join(' ').toLowerCase();
+  return hay.includes(q);
+}
+function matchedRepIds() {
+  const q = S.search.trim().toLowerCase();
+  if (!q || !LAYOUT) return null;
+  const ids = new Set();
+  for (const n of MODEL.nodes) if (nodeMatches(n, q)) { const r = LAYOUT.rep(n.id); if (r) ids.add(r.id); }
+  for (const g of MODEL.groups) if (String(g.label || g.id).toLowerCase().includes(q)) { const r = LAYOUT.rep(g.id); if (r && r.leaf) ids.add(r.id); }
+  return ids;
+}
+function highlight() {
+  const sel = S.selected, matches = matchedRepIds();
+  let focus = null, selEdges = null;
+  if (sel && sel.type !== 'edge') {
+    const r = LAYOUT.rep(sel.id);
+    if (r && (r.leaf)) {
+      focus = new Set([r.id]);
+      for (const ae of LAYOUT.AGG) if (ae.a.id === r.id || ae.b.id === r.id) { focus.add(ae.a.id); focus.add(ae.b.id); }
+    }
+  } else if (sel && sel.type === 'edge') {
+    selEdges = sel.id;
+  }
+  svg.querySelectorAll('.node').forEach(g => {
+    const id = g.dataset.id;
+    g.classList.toggle('sel', !!sel && sel.type !== 'edge' && LAYOUT.rep(sel.id) && LAYOUT.rep(sel.id).id === id);
+    g.classList.toggle('dim', matches ? !matches.has(id) : !!(focus && !focus.has(id)));
+  });
+  svg.querySelectorAll('.edge, .elabel').forEach(g => {
+    const touches = focus && sel && (g.dataset.a === LAYOUT.rep(sel.id).id || g.dataset.b === LAYOUT.rep(sel.id).id);
+    const isSelEdge = selEdges && (g.dataset.edges || '').split(' ').includes(selEdges) || (selEdges && g.dataset.sel === 'edge:' + selEdges);
+    g.classList.toggle('hl', !!touches);
+    g.classList.toggle('sel', !!isSelEdge && g.classList.contains('edge'));
+    g.classList.toggle('dim', matches ? !(matches.has(g.dataset.a) || matches.has(g.dataset.b)) : !!((focus && !touches) || (selEdges && !isSelEdge)));
+  });
+  svg.querySelectorAll('.grp').forEach(g => g.classList.toggle('sel', !!sel && sel.type === 'group' && sel.id === g.dataset.gid));
+}
+function select(type, id) {
+  S.selected = type ? { type, id } : null;
+  highlight();
+  renderPanel();
+}
+
+// ---------------------------------------------------------------- view transform
+function applyView() { if (vp) vp.setAttribute('transform', `translate(${S.view.x},${S.view.y}) scale(${S.view.k})`); }
+function fitView() {
+  const r = svg.getBoundingClientRect(), bb = LAYOUT.bbox, m = 36;
+  const k = Math.min((r.width - 2 * m) / Math.max(bb.w, 1), (r.height - 2 * m) / Math.max(bb.h, 1), 1.4);
+  S.view = { k, x: (r.width - bb.w * k) / 2 - bb.x * k, y: (r.height - bb.h * k) / 2 - bb.y * k };
+  applyView();
+}
+function centerOn(id) {
+  const it = LAYOUT.rep(id);
+  if (!it) return;
+  const r = svg.getBoundingClientRect(), k = Math.max(S.view.k, 0.9);
+  S.view = { k, x: r.width / 2 - (it.x + it.w / 2) * k, y: r.height / 2 - (it.y + it.h / 2) * k };
+  applyView();
+}
+
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  const r = svg.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top;
+  const k = Math.max(0.08, Math.min(4, S.view.k * Math.exp(-e.deltaY * 0.0015)));
+  S.view.x = mx - (mx - S.view.x) * (k / S.view.k);
+  S.view.y = my - (my - S.view.y) * (k / S.view.k);
+  S.view.k = k;
+  applyView();
+}, { passive: false });
+
+let drag = null, lastClick = { key: null, t: 0 }, raf = 0;
+svg.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const t = e.target.closest('[data-drag]');
+  const id = t ? t.dataset.drag : null;
+  const o = id ? (S.offsets[id] || { dx: 0, dy: 0 }) : null;
+  drag = { id, target: e.target, sx: e.clientX, sy: e.clientY, moved: false, base: id ? { dx: o.dx || 0, dy: o.dy || 0 } : { x: S.view.x, y: S.view.y } };
+  try { svg.setPointerCapture(e.pointerId); } catch (_) { /* synthetic or already-released pointer */ }
+});
+svg.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if (!drag.moved && Math.hypot(dx, dy) < 4) return;
+  drag.moved = true;
+  if (drag.id) {
+    S.offsets[drag.id] = { dx: drag.base.dx + dx / S.view.k, dy: drag.base.dy + dy / S.view.k };
+    if (!raf) raf = requestAnimationFrame(() => { raf = 0; render(); });
+  } else {
+    svg.classList.add('panning');
+    S.view.x = drag.base.x + dx; S.view.y = drag.base.y + dy;
+    applyView();
+  }
+});
+svg.addEventListener('pointerup', () => {
+  if (!drag) return;
+  svg.classList.remove('panning');
+  const d = drag; drag = null;
+  if (d.moved) return;
+  const t = d.target && d.target.closest ? d.target.closest('[data-sel]') : null;
+  const key = t ? t.dataset.sel : null;
+  const now = Date.now();
+  const dbl = key && key === lastClick.key && now - lastClick.t < 380;
+  lastClick = { key, t: now };
+  if (dbl && key.startsWith('group:')) {
+    const gid = key.slice(6);
+    if (S.collapsed.has(gid)) S.collapsed.delete(gid); else S.collapsed.add(gid);
+    render();
+    return;
+  }
+  if (!key) { select(null); return; }
+  const i = key.indexOf(':');
+  select(key.slice(0, i), key.slice(i + 1));
+});
+
+// ---------------------------------------------------------------- panel
+function kv(rows) {
+  const r = rows.filter(([, v]) => v !== undefined && v !== null && v !== '');
+  if (!r.length) return '';
+  return '<table>' + r.map(([k, v, raw]) => `<tr><td>${esc(k)}</td><td>${raw ? v : fmt(v)}</td></tr>`).join('') + '</table>';
+}
+function fmt(v) {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'object') { const s = JSON.stringify(v); return '<code>' + esc(s.length > 400 ? s.slice(0, 400) + '…' : s) + '</code>'; }
+  const s = String(v);
+  if (/^arn:aws[a-z-]*:/.test(s)) return '<code>' + esc(s) + '</code>';
+  return esc(s);
+}
+function chipFor(n) {
+  const href = iconOf(n);
+  if (href) return `<img class="chip-img" src="${esc(href)}" alt="">`;
+  return `<span class="chip" style="background:${nodeColor(n)}">${esc(glyphOf(n))}</span>`;
+}
+function crumbs(groupId) {
+  const parts = [];
+  for (let g = GROUP_BY_ID.get(groupId), guard = 0; g && guard < 50; g = GROUP_BY_ID.get(g.parent), guard++) parts.unshift(`<a data-goto="group:${esc(g.id)}">${esc(g.label || g.id)}</a>`);
+  return parts.length ? `<div class="crumbs">${parts.join(' › ')}</div>` : '';
+}
+function consoleLink(arn) {
+  if (!arn || !/^arn:aws[a-z-]*:/.test(arn)) return '';
+  const host = arn.startsWith('arn:aws-cn:') ? 'console.amazonaws.cn' : arn.startsWith('arn:aws-us-gov:') ? 'console.amazonaws-us-gov.com' : 'console.aws.amazon.com';
+  return `<a href="https://${host}/go/view?arn=${encodeURIComponent(arn)}" target="_blank" rel="noopener">Open in AWS console ↗</a>`;
+}
+function connections(id) {
+  const outE = MODEL.edges.filter(e => e.from === id), inE = MODEL.edges.filter(e => e.to === id);
+  const li = (e, peer, arrow) => `<li>${arrow} <a data-goto="${NODE_BY_ID.has(peer) ? 'node' : 'group'}:${esc(peer)}">${esc(labelOf(peer))}</a> <span class="muted">${esc(e.label || '')} · <a data-goto="edge:${esc(e.id)}">${esc(edgeStyle(e.kind).name.toLowerCase())}</a>${S.hiddenKinds.has(e.kind) ? ' (hidden)' : ''}</span></li>`;
+  let h = '';
+  if (outE.length) h += '<h3>Outgoing</h3><ul>' + outE.map(e => li(e, e.to, '→')).join('') + '</ul>';
+  if (inE.length) h += '<h3>Incoming</h3><ul>' + inE.map(e => li(e, e.from, '←')).join('') + '</ul>';
+  return h;
+}
+function sourceText(src) {
+  if (!src) return '';
+  if (typeof src === 'string') return src;
+  return [src.file, src.line ? ':' + src.line : '', src.construct ? ` (${src.construct})` : ''].join('');
+}
+function renderPanel() {
+  const p = $('#panel'), sel = S.selected;
+  if (!sel) { p.innerHTML = overviewHtml(); bindPanel(); return; }
+  if (sel.type === 'node') {
+    const n = NODE_BY_ID.get(sel.id);
+    if (!n) { select(null); return; }
+    const s = svc(n);
+    p.innerHTML = crumbs(n.group) +
+      `<h2>${chipFor(n)}${esc(n.label || n.id)}</h2><div class="muted">${esc(n.kind || '')}${n.kind && s ? ' · ' : ''}${esc(s ? s.name : (n.service || ''))}</div>` +
+      (n.status && STATUS[n.status] ? `<p><span class="pill" style="background:${STATUS[n.status].color}">${esc(STATUS[n.status].name)}</span></p>` : '') +
+      (n.description ? `<p>${esc(n.description)}</p>` : '') +
+      (n.notes ? `<div class="notes">${esc(n.notes)}</div>` : '') +
+      '<h3>Resource</h3>' + kv([['ID', n.id], ['ARN', n.arn], ['Physical ID', n.physicalId], ['Source', sourceText(n.source)], ['Origin', n.origin], ['', consoleLink(n.arn), true]]) +
+      (n.details && Object.keys(n.details).length ? '<h3>Details</h3>' + kv(Object.entries(n.details)) : '') +
+      (n.tags && Object.keys(n.tags).length ? '<h3>Tags</h3>' + kv(Object.entries(n.tags)) : '') +
+      connections(n.id);
+  } else if (sel.type === 'group') {
+    const g = GROUP_BY_ID.get(sel.id);
+    if (!g) { select(null); return; }
+    const members = MODEL.nodes.filter(n => n.group === g.id), subs = MODEL.groups.filter(x => x.parent === g.id);
+    p.innerHTML = crumbs(g.parent) + `<h2>${esc(g.label || g.id)}</h2><div class="muted">${esc(groupStyle(g).name)}</div>` +
+      (g.description ? `<p>${esc(g.description)}</p>` : '') + (g.notes ? `<div class="notes">${esc(g.notes)}</div>` : '') +
+      `<p><button class="inline" data-toggle="${esc(g.id)}" style="background:#f2f3f3;color:#16191f;border-color:#d5dbe1">${S.collapsed.has(g.id) ? 'Expand group' : 'Collapse group'}</button></p>` +
+      kv([['ID', g.id], ['ARN', g.arn], ['', consoleLink(g.arn), true]]) +
+      (g.details && Object.keys(g.details).length ? '<h3>Details</h3>' + kv(Object.entries(g.details)) : '') +
+      (subs.length ? '<h3>Sub-groups</h3><ul>' + subs.map(x => `<li><a data-goto="group:${esc(x.id)}">${esc(x.label || x.id)}</a> <span class="muted">${esc(groupStyle(x).name)}</span></li>`).join('') + '</ul>' : '') +
+      (members.length ? '<h3>Resources</h3><ul>' + members.map(x => `<li><a data-goto="node:${esc(x.id)}">${esc(x.label || x.id)}</a> <span class="muted">${esc(x.kind || (svc(x) || {}).name || x.service || '')}</span></li>`).join('') + '</ul>' : '') +
+      connections(g.id);
+  } else if (sel.type === 'edge') {
+    const e = EDGE_BY_ID.get(sel.id);
+    if (!e) { select(null); return; }
+    const ae = LAYOUT.AGG.find(a => a.edges.includes(e));
+    const list = ae ? ae.edges : [e];
+    p.innerHTML = '<h2>Connection</h2>' + list.map(x => `<h3>${esc(labelOf(x.from))} → ${esc(labelOf(x.to))}</h3>` +
+      kv([['Kind', edgeStyle(x.kind).name], ['Label', x.label], ['Description', x.description], ['Status', x.status && STATUS[x.status] ? STATUS[x.status].name : x.status], ['Source', sourceText(x.source)], ['Origin', x.origin], ['ID', x.id]]) +
+      (x.details && Object.keys(x.details).length ? kv(Object.entries(x.details)) : '') +
+      `<p><a data-goto="${NODE_BY_ID.has(x.from) ? 'node' : 'group'}:${esc(x.from)}">← ${esc(labelOf(x.from))}</a> &nbsp; <a data-goto="${NODE_BY_ID.has(x.to) ? 'node' : 'group'}:${esc(x.to)}">${esc(labelOf(x.to))} →</a></p>`).join('');
+  }
+  bindPanel();
+}
+function overviewHtml() {
+  const m = MODEL.meta;
+  const cats = {};
+  MODEL.nodes.forEach(n => { const c = catOf(n); cats[c] = (cats[c] || 0) + 1; });
+  const kinds = {};
+  MODEL.edges.forEach(e => { kinds[e.kind] = (kinds[e.kind] || 0) + 1; });
+  const statuses = {};
+  MODEL.nodes.forEach(n => { if (n.status) statuses[n.status] = (statuses[n.status] || 0) + 1; });
+  const gtypes = {};
+  MODEL.groups.forEach(g => { gtypes[g.type || 'generic'] = (gtypes[g.type || 'generic'] || 0) + 1; });
+  let h = `<h2>${esc(m.title || 'AWS architecture')}</h2>`;
+  if (m.description) h += `<p>${esc(m.description)}</p>`;
+  h += `<p class="muted">${MODEL.nodes.length} resources · ${MODEL.edges.length} connections · ${MODEL.groups.length} groups</p>`;
+  if (m.notes) h += `<div class="notes">${esc(m.notes)}</div>`;
+  h += '<h3>Services</h3>' + Object.entries(cats).sort((a, b) => b[1] - a[1]).map(([c, k]) => {
+    const cc = CATALOG.categories[c] || CATALOG.categories.general;
+    return `<div class="legend-row"><span class="chip" style="background:${cc.color}">&nbsp;</span>${esc(cc.name)}<span class="count">${k}</span></div>`;
+  }).join('');
+  if (Object.keys(kinds).length) h += '<h3>Connections</h3>' + Object.entries(kinds).map(([k, c]) => {
+    const st = edgeStyle(k), name = EDGE_KINDS[k] ? st.name : k;
+    return `<div class="legend-row"><svg width="38" height="10"><line x1="1" y1="5" x2="37" y2="5" stroke="${st.color}" stroke-width="2" stroke-dasharray="${st.dash}"/></svg>${esc(name)}${S.hiddenKinds.has(k) ? ' <span class="muted">(hidden — View menu)</span>' : ''}<span class="count">${c}</span></div>`;
+  }).join('');
+  if (Object.keys(statuses).length) h += '<h3>Code vs. account</h3>' + Object.entries(statuses).map(([s, c]) => {
+    const st = STATUS[s] || { name: s, color: '#5f6b7a', sym: '?' };
+    return `<div class="legend-row"><span class="chip" style="background:${st.color};border-radius:11px">${st.sym}</span>${esc(st.name)}<span class="count">${c}</span></div>`;
+  }).join('') + '<div class="muted" style="font-size:12px;margin-top:4px">Resources in code and deployed show no badge.</div>';
+  if (Object.keys(gtypes).length) h += '<h3>Groups</h3>' + Object.entries(gtypes).map(([t, c]) => {
+    const st = GROUP_STYLES[t] || GROUP_STYLES.generic, gi = groupIconOf({ type: t });
+    const chip = gi ? `<img class="chip-img" src="${esc(gi)}" alt="">` : `<span class="chip" style="background:${st.stroke};border-radius:2px">${esc(st.tag)}</span>`;
+    return `<div class="legend-row">${chip}${esc(st.name)}<span class="count">${c}</span></div>`;
+  }).join('');
+  const srcs = m.sources || [];
+  if (srcs.length) h += '<h3>Sources</h3><ul>' + srcs.map(s => `<li>${esc(s.type || 'source')}: ${esc(s.path || s.description || [s.accountId, (s.regions || []).join(', '), s.profile ? '(' + s.profile + ')' : ''].filter(Boolean).join(' '))}${s.scannedAt ? ` <span class="muted">· ${esc(s.scannedAt)}</span>` : ''}</li>`).join('') + '</ul>';
+  h += '<h3>Generated</h3>' + kv([['Created', m.generatedAt], ['Last updated', m.updatedAt], ['Project', m.project], ['Generator', m.generator || 'aws-architecture-diagram skill']]);
+  const log = (m.changelog || []).slice().reverse().slice(0, 15);
+  if (log.length) h += '<h3>Change log</h3><ul>' + log.map(c => `<li><b>${esc(c.date || '')}</b> ${esc(c.summary || '')}</li>`).join('') + '</ul>';
+  h += '<p class="muted" style="font-size:12px;margin-top:18px">Click a resource, connection, or group header for details.</p>';
+  return h;
+}
+function bindPanel() {
+  const p = $('#panel');
+  p.querySelectorAll('[data-goto]').forEach(a => a.addEventListener('click', ev => {
+    ev.preventDefault();
+    const v = a.dataset.goto, i = v.indexOf(':'), type = v.slice(0, i), id = v.slice(i + 1);
+    select(type, id);
+    if (type !== 'edge') centerOn(id);
+  }));
+  p.querySelectorAll('[data-toggle]').forEach(b => b.addEventListener('click', () => {
+    const id = b.dataset.toggle;
+    if (S.collapsed.has(id)) S.collapsed.delete(id); else S.collapsed.add(id);
+    render(); renderPanel();
+  }));
+}
+
+// ---------------------------------------------------------------- view menu
+function renderViewMenu() {
+  const kindsPresent = [...new Set(MODEL.edges.map(e => e.kind))];
+  const pop = $('#view-pop');
+  pop.innerHTML = '<h4>Layout direction</h4>' +
+    `<label><input type="radio" name="dir" value="LR" ${S.dir === 'LR' ? 'checked' : ''}> Left → right</label>` +
+    `<label><input type="radio" name="dir" value="TB" ${S.dir === 'TB' ? 'checked' : ''}> Top → bottom</label>` +
+    (kindsPresent.length ? '<h4>Connections</h4>' + kindsPresent.map(k => `<label><input type="checkbox" data-kind="${esc(k)}" ${S.hiddenKinds.has(k) ? '' : 'checked'}> ${esc(edgeStyle(k).name)}</label>`).join('') : '') +
+    '<h4>Display</h4>' +
+    `<label><input type="checkbox" id="opt-labels" ${S.showLabels ? 'checked' : ''}> Connection labels</label>` +
+    `<label><input type="checkbox" id="opt-status" ${S.showStatus ? 'checked' : ''}> Code vs. account badges</label>` +
+    (Object.keys(ICONS.services).length ? `<label><input type="checkbox" id="opt-icons" ${S.serviceIcons ? 'checked' : ''}> AWS service icons</label>` : '') +
+    '<h4>Groups &amp; layout</h4><button id="btn-expand">Expand all groups</button><button id="btn-collapse-sub">Collapse all subnets</button><button id="btn-reset">Reset manual positions</button>';
+  pop.querySelectorAll('input[name=dir]').forEach(r => r.addEventListener('change', () => { S.dir = r.value; S.offsets = {}; render(); fitView(); }));
+  pop.querySelectorAll('input[data-kind]').forEach(c => c.addEventListener('change', () => { if (c.checked) S.hiddenKinds.delete(c.dataset.kind); else S.hiddenKinds.add(c.dataset.kind); render(); if (!S.selected) renderPanel(); }));
+  $('#opt-labels').addEventListener('change', ev => { S.showLabels = ev.target.checked; render(); });
+  $('#opt-status').addEventListener('change', ev => { S.showStatus = ev.target.checked; render(); });
+  if ($('#opt-icons')) $('#opt-icons').addEventListener('change', ev => { S.serviceIcons = ev.target.checked; render(); renderPanel(); });
+  $('#btn-expand').addEventListener('click', () => { S.collapsed.clear(); render(); fitView(); });
+  $('#btn-collapse-sub').addEventListener('click', () => { MODEL.groups.filter(g => /^subnet/.test(g.type || '')).forEach(g => S.collapsed.add(g.id)); render(); fitView(); });
+  $('#btn-reset').addEventListener('click', () => { S.offsets = {}; render(); fitView(); });
+}
+
+// ---------------------------------------------------------------- export
+function currentModel() {
+  const m = JSON.parse(JSON.stringify(MODEL));
+  const offsets = {};
+  for (const [id, o] of Object.entries(S.offsets)) if (o && (Math.abs(o.dx) > 0.5 || Math.abs(o.dy) > 0.5)) offsets[id] = { dx: Math.round(o.dx), dy: Math.round(o.dy) };
+  m.layout = Object.assign({}, m.layout || {}, { direction: S.dir, offsets, collapsed: [...S.collapsed], hiddenEdgeKinds: [...S.hiddenKinds], showEdgeLabels: S.showLabels });
+  if (!S.serviceIcons) m.layout.serviceIcons = false; else delete m.layout.serviceIcons;
+  return m;
+}
+function jsonForScript(obj) { return JSON.stringify(obj, null, 1).replace(/</g, '\\u003c'); }
+function buildSvg() {
+  const bb = LAYOUT.bbox, m = 30, titleH = MODEL.meta.title ? 40 : 0;
+  const clone = svg.cloneNode(true);
+  clone.setAttribute('xmlns', SVGNS);
+  const w = Math.ceil(bb.w + 2 * m), h = Math.ceil(bb.h + 2 * m + titleH);
+  clone.setAttribute('viewBox', `${bb.x - m} ${bb.y - m - titleH} ${w} ${h}`);
+  clone.setAttribute('width', w); clone.setAttribute('height', h);
+  clone.removeAttribute('id'); clone.removeAttribute('class');
+  const v = clone.querySelector('#viewport');
+  v.removeAttribute('transform');
+  clone.querySelectorAll('.dim, .sel, .hl').forEach(n => n.classList.remove('dim', 'sel', 'hl'));
+  clone.querySelectorAll('title').forEach(t => t.remove());
+  const bg = document.createElementNS(SVGNS, 'rect');
+  bg.setAttribute('x', bb.x - m); bg.setAttribute('y', bb.y - m - titleH); bg.setAttribute('width', w); bg.setAttribute('height', h); bg.setAttribute('fill', '#ffffff');
+  clone.insertBefore(bg, clone.firstChild.nextSibling);
+  if (titleH) {
+    const t = document.createElementNS(SVGNS, 'text');
+    t.setAttribute('x', bb.x); t.setAttribute('y', bb.y - m - titleH + 30); t.setAttribute('font-size', 18); t.setAttribute('font-weight', 700); t.setAttribute('fill', '#232F3E'); t.setAttribute('font-family', FONT);
+    t.textContent = MODEL.meta.title;
+    clone.appendChild(t);
+  }
+  return { text: '<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone), w, h };
+}
+$('#btn-svg').addEventListener('click', () => { download(buildSvg().text, slug() + '.svg', 'image/svg+xml'); });
+$('#btn-png').addEventListener('click', () => {
+  const { text, w, h } = buildSvg();
+  const img = new Image();
+  img.onload = () => {
+    const c = document.createElement('canvas'), s = 2;
+    c.width = w * s; c.height = h * s;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    try { c.toBlob(b => download(b, slug() + '.png')); } catch (err) { alert('PNG export failed (external icon images taint the canvas). Use SVG export instead.'); }
+  };
+  img.onerror = () => alert('PNG export failed. Use SVG export instead.');
+  img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(text);
+});
+$('#btn-json').addEventListener('click', () => { download(JSON.stringify(currentModel(), null, 2), slug() + '.diagram.json', 'application/json'); });
+function pageHtml() {
+  const doc = PRISTINE.cloneNode(true);
+  doc.querySelector('#aws-diagram-model').textContent = jsonForScript(currentModel());
+  return '<!DOCTYPE html>\n' + doc.outerHTML;
+}
+$('#btn-html').addEventListener('click', () => { download(pageHtml(), slug() + '.html', 'text/html'); });
+
+// ---------------------------------------------------------------- chrome
+$('#title').textContent = MODEL.meta.title || 'AWS Architecture Diagram';
+document.title = (MODEL.meta.title || 'AWS Architecture') + ' — architecture diagram';
+$('#subtitle').textContent = [MODEL.meta.project, MODEL.meta.updatedAt ? 'updated ' + MODEL.meta.updatedAt : (MODEL.meta.generatedAt ? 'generated ' + MODEL.meta.generatedAt : '')].filter(Boolean).join(' · ');
+$('#btn-fit').addEventListener('click', fitView);
+$('#btn-panel').addEventListener('click', () => { document.body.classList.toggle('panel-hidden'); setTimeout(fitView, 0); });
+const search = $('#search');
+search.addEventListener('input', () => { S.search = search.value; highlight(); });
+search.addEventListener('keydown', ev => {
+  if (ev.key === 'Enter') {
+    const q = S.search.trim().toLowerCase();
+    const n = q && MODEL.nodes.find(x => nodeMatches(x, q));
+    if (n) { select('node', n.id); centerOn(n.id); }
+  } else if (ev.key === 'Escape') { search.value = ''; S.search = ''; highlight(); search.blur(); }
+});
+document.addEventListener('keydown', ev => {
+  if (ev.target.tagName === 'INPUT') return;
+  if (ev.key === '/') { ev.preventDefault(); search.focus(); }
+  else if (ev.key === 'f' || ev.key === 'F') fitView();
+  else if (ev.key === 'Escape') select(null);
+});
+document.addEventListener('click', ev => { document.querySelectorAll('details.menu[open]').forEach(d => { if (!d.contains(ev.target)) d.removeAttribute('open'); }); });
+window.addEventListener('resize', () => { if (LAYOUT) applyView(); });
+
+renderViewMenu();
+render();
+renderPanel();
+fitView();
+window.__awsDiagram = { model: MODEL, state: S, render, fitView, select, currentModel, buildSvg, pageHtml, layout: () => LAYOUT };
+})();
+</script>
+</body>
+</html>
