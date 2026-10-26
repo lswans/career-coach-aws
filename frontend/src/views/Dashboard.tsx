@@ -18,12 +18,14 @@ export function Dashboard({
   onUpdateProfile,
   onStartOver,
   onMemorySaved,
+  onProfileUpdated,
 }: {
   user: StoredUser;
   data: ProfileResponse;
   onUpdateProfile: () => void;
   onStartOver: () => void;
   onMemorySaved: () => void;
+  onProfileUpdated: (res: ProfileResponse) => void;
 }) {
   const [active, setActive] = useState<TabId>('profile');
   const tabRefs = useRef<Partial<Record<TabId, HTMLButtonElement | null>>>({});
@@ -87,7 +89,7 @@ export function Dashboard({
         <ProfilePanel profile={data.profile} />
       </div>
       <div role="tabpanel" id="panel-coach" aria-labelledby="tab-coach" hidden={active !== 'coach'}>
-        <CoachPanel userId={user.userId} onMemorySaved={onMemorySaved} />
+        <CoachPanel userId={user.userId} onMemorySaved={onMemorySaved} onProfileUpdated={onProfileUpdated} />
       </div>
       <div role="tabpanel" id="panel-insights" aria-labelledby="tab-insights" hidden={active !== 'insights'}>
         <InsightsPanel insights={data.insights} />

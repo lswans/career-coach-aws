@@ -111,8 +111,15 @@ type CareerProfile = {
                    source_title?: string; source_url?: string;
                    original_title?: string /* the model's wording, when corrected */ }[];
   sources: { name: string; kind: "file" | "text"; chars: number; truncated: boolean }[];
+  // How this version was made (absent on profiles saved before chat refreshes; read as "intake", "", 0):
+  origin?: "intake" | "refresh";
+  request_id?: string;   // the chat request that produced a refresh
+  notes_used?: number;   // progress notes the model read for this version
 };
 ```
+
+A refresh keeps the original document entries in `sources` and adds `Profile version N (baseline)` and
+`Progress log (M notes)`. The next refresh replaces those two entries instead of stacking them.
 
 `verification`: `verified` = a search result names the offering (`source_*` link to it); `corrected` = it
 doesn't, but a close real one does, so the step was renamed to it; `unverified` = nothing matching was found;
@@ -160,7 +167,27 @@ Graph meaning: `you` connects to each `category`, categories to `skill`s (have i
 
 ## POST /api/users/{user_id}/chat -> 200 text/event-stream | 409
 
-Body: `{ "message": "1-4000 chars", "session_id": "^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$" }`
+Body: `{ "message": "1-4000 chars", "session_id": "^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$",
+"request_id": "^[A-Za-z0-9][A-Za-z0-9_-]{7,99}$" (optional) }`
+
+`request_id` names one message. Send a new one per message and the same one when retrying that message:
+the server then stores its progress note once and builds at most one profile version for it. Without a
+`request_id`, the server derives one from the user, session and message text, so the same text sent twice
+in one session counts as a retry.
+
+**Profile refresh.** When the message reports progress (a `memory` event) or explicitly asks to
+"refresh/update/rebuild my profile", the server rebuilds the profile before the coach replies and saves it
+as version N+1. Ordinary chat never builds a profile. A refresh:
+
+- starts from the latest profile (the original documents are not kept, so the previous profile is the
+  baseline), reads the progress log under a fixed budget (see DESIGN.md), and keeps `goals` exactly as the
+  person wrote them. Changing the goal is done through `POST /profile`, which validates it;
+- removes, in code, any next step that a completion note strongly matches, and adds a new milestone as
+  evidence on the skill its note names when the model left it out;
+- counts against the daily profile-build cap (hosted mode), runs one at a time per user, and replays the
+  saved version if the same `request_id` already produced one (no new build is counted then);
+- if it fails, keeps the note, sends `profile_refresh_failed`, and the coach is told not to claim an update.
+  Retry by resending the same message with the same `request_id`, or by sending "Refresh my profile".
 
 Chat history persists per `session_id`. Long-term memory (profile, progress notes and, with AgentCore,
 extracted facts and preferences) carries across sessions. The response is a POST stream, so read it
@@ -169,12 +196,19 @@ followed by a blank line:
 
 | `type` | Payload | Meaning |
 |---|---|---|
-| `memory` | `note: ProgressNote` | Sent first, only when the message reported progress and it was saved |
+| `memory` | `note: ProgressNote` | Sent first, only when the message reported progress and it was saved (a retry resends the stored note) |
+| `profile_refresh` | `state`, `stage?`, `detail` | The profile rebuild is running; `detail` is display text |
+| `profile_updated` | `profile: CareerProfile`, `insights: Insights` | The new version was saved. Replace the whole app state with it |
+| `profile_refresh_failed` | `code`, `message`, `note_saved: boolean`, `retryable: boolean` | No new version was saved. `code`: `NO_PROGRESS`, `DAILY_LIMIT`, `MODEL_UNAVAILABLE`, `SYNTHESIS_FAILED` or `MEMORY_UNAVAILABLE` |
 | `sources` | `items: {title, url}[]` | Web results the coach was given, numbered to match its `[1]` citations. Only for questions about certifications, courses, jobs or events |
 | `delta` | `text` | Next chunk of the reply; append it |
 | `tool` | `name` | The coach looked something up (`get_profile_section`) |
 | `check` | `unverified: string[]` | Certification names in the reply that no web result backs up (sent before `done`) |
-| `done` | `text`, `tools: string[]`, `recorded: ProgressNote \| null` | Final reply text |
+| `done` | `text`, `tools: string[]`, `recorded: ProgressNote \| null`, `profile_version: number \| null` | Final reply text; `profile_version` is set only when this turn saved (or replayed) a version |
 | `error` | `message` | The model failed mid-stream |
 
-After a `memory` event, re-fetch insights so the trends update.
+Order: `memory`, then the `profile_*` events, then `sources`, `delta`/`tool`, `check`, `done`. After a
+`memory` event, re-fetch insights so the trends update, but drop the answer if a `profile_updated` with a
+newer version has already arrived (compare `trends.snapshots[-1].version` with the profile on screen).
+
+`ProgressNote` is `{ kind, text, skill, created_at, request_id? }` (`request_id` is absent on older notes).

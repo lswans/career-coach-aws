@@ -29,6 +29,10 @@ logger = logging.getLogger(__name__)
 
 PROFILE_SESSION = "profile-snapshots"
 NOTES_SESSION = "progress-notes"
+# Upper bound on events read per list (the SDK pages 100 at a time and stops here). Chat-driven
+# refreshes save a profile version per reported milestone, so the old cap of 100 could hide the
+# newest versions; 1000 is about three years at the hosted daily build cap.
+MAX_EVENTS = 1000
 # namespace template -> (top_k, minimum relevance score)
 RETRIEVAL = {
     "/facts/{actorId}/": (5, 0.3),
@@ -38,6 +42,13 @@ RETRIEVAL = {
 
 def progress_namespace(user_id: str) -> str:
     return f"/career/{user_id}/progress/"
+
+
+def _version(item: dict[str, Any]) -> int:
+    try:
+        return int(item.get("version", 0) or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def as_blob(data: dict[str, Any]) -> str:
@@ -95,7 +106,7 @@ class AgentCoreMemoryStore(MemoryStore):
     def _blobs(self, user_id: str, session_id: str) -> list[dict[str, Any]]:
         with aws_errors():
             events = self.client.list_events(
-                memory_id=self.memory_id, actor_id=user_id, session_id=session_id, max_results=100
+                memory_id=self.memory_id, actor_id=user_id, session_id=session_id, max_results=MAX_EVENTS
             )
         items: list[dict[str, Any]] = []
         for event in events:
@@ -108,7 +119,9 @@ class AgentCoreMemoryStore(MemoryStore):
                         continue
                 if isinstance(blob, dict):
                     items.append(blob)
-        return sorted(items, key=lambda item: str(item.get("created_at", "")))
+        # Timestamps have one-second resolution, so two profiles saved in the same second tie; the
+        # version number breaks the tie, or latest_profile() could return the older one.
+        return sorted(items, key=lambda item: (str(item.get("created_at", "")), _version(item)))
 
     def save_profile(self, user_id: str, profile: dict[str, Any]) -> None:
         with aws_errors():

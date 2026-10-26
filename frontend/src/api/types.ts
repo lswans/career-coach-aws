@@ -98,6 +98,10 @@ export type CareerProfile = {
   weaknesses: Weakness[];
   opportunities: Opportunity[];
   sources: Source[];
+  // How this version was made (absent on profiles saved before chat refreshes existed).
+  origin?: 'intake' | 'refresh';
+  request_id?: string;
+  notes_used?: number;
 };
 
 export type GraphNodeType =
@@ -131,6 +135,7 @@ export type ProgressNote = {
   text: string;
   skill: string;
   created_at: string;
+  request_id?: string;
 };
 
 export type Snapshot = {
@@ -197,12 +202,16 @@ export type BuildEvent =
 
 export type WebSource = { title: string; url: string };
 
-// Chat SSE events.
+// Chat SSE events. A reported milestone (or "refresh my profile") adds the profile_* events before
+// the reply: profile_refresh while it builds, then profile_updated or profile_refresh_failed.
 export type ChatEvent =
   | { type: 'memory'; note: ProgressNote }
+  | { type: 'profile_refresh'; state: string; stage?: string; detail: string }
+  | ({ type: 'profile_updated' } & ProfileResponse)
+  | { type: 'profile_refresh_failed'; code: string; message: string; note_saved: boolean; retryable: boolean }
   | { type: 'sources'; items: WebSource[] }
   | { type: 'delta'; text: string }
   | { type: 'tool'; name: string }
   | { type: 'check'; unverified: string[] }
-  | { type: 'done'; text: string; tools: string[]; recorded: ProgressNote | null }
+  | { type: 'done'; text: string; tools: string[]; recorded: ProgressNote | null; profile_version?: number | null }
   | { type: 'error'; message: string };

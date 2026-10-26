@@ -4,15 +4,21 @@ import type { WebSource } from '../api/types';
 export type StoredUser = { userId: string; name: string };
 
 export type ChatRole = 'user' | 'coach';
+// What happened to the profile during a turn. Only 'updated' may say the profile changed.
+export type ProfileStatus =
+  | { state: 'updated'; version: number }
+  | { state: 'failed'; message: string; retryable: boolean };
 export type ChatMessage = {
   id: string;
   role: ChatRole;
   text: string;
+  requestId?: string; // user messages: sent with the request and reused on retry, so the server dedupes
   // inline annotations shown with the message
   memoryNote?: string;
   tools?: string[];
   sources?: WebSource[];
   unverified?: string[]; // offering names in the reply that no web result backs up
+  profileStatus?: ProfileStatus;
 };
 export type StoredChat = { sessionId: string; messages: ChatMessage[] };
 
@@ -54,4 +60,11 @@ export function newSessionId(): string {
 
 export function randomMsgId(): string {
   return `m-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
+}
+
+/** An id for one chat request (matches the API's request_id pattern). */
+export function newRequestId(): string {
+  const bytes = new Uint8Array(12);
+  crypto.getRandomValues(bytes);
+  return `r-${Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('')}`;
 }

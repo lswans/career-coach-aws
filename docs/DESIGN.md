@@ -157,6 +157,22 @@ became "scikit-learn and ML modeling").
   the instance role through IMDSv2 with a hop limit of 1. Only then does it send `cfn-signal`. `CREATE_COMPLETE`
   therefore means the health check answered, and an image that can't be pulled or won't start rolls the stack back.
   Nothing is compiled in the attendee's account.
+- **Updating a running stack restarts the server, never replaces it.** CloudFront rejects any change to a VPC origin
+  while a distribution uses it (HTTP 409, "disassociate the VPC origin from all distributions"), so a new server
+  can't take over the link inside one stack update. Found the hard way on 2026-10-26: an update that only changed
+  `ImageUri` also picked up a newer Amazon Linux AMI from the public SSM parameter, replaced the instance, and
+  rolled back at `CoachVpcOrigin`. Two template rules prevent this:
+  - `ServerAmiId` pins the AMI: empty on create (newest AL2023), then the `ServerAmi` output on every update.
+  - The user data is a MIME multi-part file whose cloud-config sets `cloud_final_modules: [[scripts-user, always]]`
+    ([the documented way](https://repost.aws/knowledge-center/execute-user-data-ec2) to run it on every boot;
+    by default it runs only on the first). `ImageUri` is in the user data, so changing it makes CloudFormation stop
+    and start the same instance, and the script pulls the new image on that boot. It checks that the health
+    endpoint answers from the new image; if the pull or the check fails it puts the previous image back, so a bad
+    image costs a restart, not an outage. The trade-off: an update takes 2-3 minutes of downtime, and
+    `UPDATE_COMPLETE` means the server restarted, not that the new image is healthy, so check `/api/health`.
+  - Systems Manager is not used for this. A State Manager association was tried first and never reached the agent
+    in an Amazon-managed account (command `Failed`, response code -1, nothing in the agent log), most likely an
+    organisation guardrail on Run Command.
 - **Least privilege.** The instance role can invoke the chosen inference profile (and the foundation models it
   routes to), subscribe through Bedrock on first use, and use this stack's memory only. Session Manager replaces
   SSH. IMDSv2 only, encrypted gp3 root volume.
@@ -181,6 +197,31 @@ repository is its first build.
   routing runs on Claude, which keeps the two providers interchangeable.
 - **Context discipline.** The system prompt carries a compact profile summary. The agent fetches details
   with `get_profile_section`, recall returns only the top 5 memories, and a sliding window keeps 20 messages.
+- **Chat updates the profile, but the model never writes it.** The coach's only tool reads profile sections.
+  When the extractor accepts a progress report, or the message asks to "refresh my profile", the API runs the
+  same synthesis pipeline as setup and saves version N+1 before the coach replies, so the reply comes from the
+  new profile. Raw uploads are never kept, so a refresh can't reread the resume. Instead
+  `progress.baseline_document` turns the previous profile (headline, summary, skills with levels and evidence,
+  gaps, next steps) into one synthetic document that says plainly it is the coach's earlier assessment, clipped
+  to `COACH_MAX_DOC_CHARS`. The goal text is copied from the baseline unchanged; only the setup form, which
+  validates it, can replace it. Two checks run in code after the model (`coach/progress.py`), because a small
+  model often repeats a finished step:
+  - a next step is dropped when a completion note (win, learning, certification or project; finished, not
+    started or planned) contains the step title's distinctive words, adjacent and in order, after removing
+    generic words like "AWS" and "certification". One word is only enough for a credential: "Learned Python"
+    must not remove "Advanced Python course", and an Associate certification must not remove the Professional one;
+  - a milestone reported since the baseline is added as evidence on the skill its note names, if that skill
+    exists and the model didn't cite it. Code never invents a skill or a level.
+- **Progress log budget for a refresh.** The model sees the newest notes, oldest first, up to 40 notes and
+  6,000 characters, each clipped to 300 characters, and the stage detail says how many older notes were left
+  out. The completed-step check reads the whole log, so an old completion still keeps its step off the list.
+- **Refreshes are serialized and idempotent.** Each user has one in-process lock (the service runs one uvicorn
+  worker) held for the whole build, setup builds included, and the version is one past the highest saved
+  version, so concurrent requests can't save the same number. The browser sends a `request_id` per message and
+  reuses it on retry: the note is stored once (checked again under a short lock after extraction), and a
+  request that already produced a version replays it without a new build or a new charge against the daily
+  build cap. If the build fails, the note stays, the stream says `profile_refresh_failed`, and the coach's
+  prompt tells it not to claim an update.
 - **Intake gate.** Documents (50+ characters) and goals (200+ characters) are both required, enforced on the
   server and mirrored in the UI from `/api/health` `rules`.
 - **Live build progress, with no fake timers.** The build is an async generator of events streamed over SSE:
