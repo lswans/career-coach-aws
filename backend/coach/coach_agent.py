@@ -72,7 +72,21 @@ PROGRESS_HINT = re.compile(
 EXTRACT_PROMPT = """Decide whether the message reports the writer's OWN career progress: an exam or \
 certification, a finished course, a shipped project, an interview, an offer, a new skill, or a setback. \
 Questions and plans for the future are NOT progress. If it is progress, restate it as one short past-tense \
-sentence and name the main skill involved (empty string if none)."""
+sentence and name the main skill involved (empty string if none). If the message points at one of the \
+person's suggested next steps ("that certification"), use that step's full official name in the sentence."""
+
+# An explicit request to rebuild the coach profile. Words between the verb and "profile" are limited
+# to my/the/your and career/coach, so "update my LinkedIn profile" is ordinary chat, not a rebuild.
+REFRESH_HINT = re.compile(
+    r"\b(refresh|update|rebuild|regenerate|redo|recalculate)\s+(?:(?:my|the|your)\s+)?"
+    r"(?:career\s+|coach(?:ing)?\s+)?profile\b",
+    re.IGNORECASE,
+)
+MAX_CONTEXT_STEPS = 5
+
+
+def wants_refresh(message: str) -> bool:
+    return bool(REFRESH_HINT.search(message))
 
 
 class ProgressExtraction(BaseModel):
@@ -82,19 +96,31 @@ class ProgressExtraction(BaseModel):
     skill: str
 
 
-async def extract_progress(model: Any, message: str) -> ProgressNote | None:
+def extraction_input(message: str, profile: dict[str, Any] | None) -> str:
+    """The message, plus the titles of the current next steps so "I passed that one" can be resolved."""
+    steps = [str(o.get("title", ""))[:120] for o in (profile or {}).get("opportunities", [])][:MAX_CONTEXT_STEPS]
+    if not steps:
+        return message
+    listing = "\n".join(f"- {s}" for s in steps if s)
+    return f"MESSAGE:\n{message}\n\nTHEIR CURRENT SUGGESTED NEXT STEPS (context only):\n{listing}"
+
+
+async def extract_progress(model: Any, message: str, profile: dict[str, Any] | None = None,
+                           request_id: str = "") -> ProgressNote | None:
     """Return a note if the message reports progress. Costs zero model calls when the gate says no."""
     if not PROGRESS_HINT.search(message):
         return None
     output = None
     async for event in model.structured_output(
-        ProgressExtraction, [{"role": "user", "content": [{"text": message}]}], system_prompt=EXTRACT_PROMPT
+        ProgressExtraction, [{"role": "user", "content": [{"text": extraction_input(message, profile)}]}],
+        system_prompt=EXTRACT_PROMPT,
     ):
         if "output" in event:
             output = event["output"]
     if output is None or not output.is_progress or not output.text.strip():
         return None
-    return ProgressNote(kind=output.kind, text=output.text.strip(), skill=output.skill.strip(), created_at=now_iso())
+    return ProgressNote(kind=output.kind, text=output.text.strip()[:500], skill=output.skill.strip()[:80],
+                        created_at=now_iso(), request_id=request_id)
 
 
 def summarize_profile(profile: dict[str, Any]) -> str:
@@ -132,11 +158,24 @@ def web_block(query: str, results: list[SearchResult]) -> str:
     )
 
 
+def refresh_block(refresh: dict[str, Any] | None) -> str:
+    """What happened to the profile this turn, stated so the reply can't claim more than the server did."""
+    if not refresh:
+        return ""
+    if refresh.get("state") == "updated":
+        return (f"\n\nPROFILE REFRESHED: the profile above is the new version {refresh.get('version')}, rebuilt "
+                "from their progress log just now. You may tell them it was updated.")
+    return ("\n\nPROFILE NOT UPDATED: the profile refresh failed this turn "
+            f"({str(refresh.get('message', ''))[:200]}). Any progress note above is saved. Do NOT say the profile "
+            "was updated; tell them they can retry the refresh.")
+
+
 def build_system_prompt(
     profile: dict[str, Any],
     memories: list[str],
     recorded: ProgressNote | None = None,
     web: str = "",
+    refresh: dict[str, Any] | None = None,
 ) -> str:
     note = (
         f"\n\nJUST SAVED TO THEIR PROGRESS LOG: {note_sentence(recorded.model_dump())}\n"
@@ -150,7 +189,7 @@ def build_system_prompt(
         summary=summarize_profile(profile),
         memories="\n".join(f"- {m}" for m in memories) or "- Nothing yet.",
         web=web,
-        recorded=note,
+        recorded=note + refresh_block(refresh),
     )
 
 
@@ -177,6 +216,7 @@ def build_coach(
     user_message: str,
     recorded: ProgressNote | None = None,
     web: str = "",
+    refresh: dict[str, Any] | None = None,
 ) -> Agent:
     memories = store.recall(user_id, user_message, top_k=5)
     if recorded:
@@ -184,7 +224,7 @@ def build_coach(
     return Agent(
         model=model,
         name="career-coach",
-        system_prompt=build_system_prompt(profile, memories, recorded, web),
+        system_prompt=build_system_prompt(profile, memories, recorded, web, refresh),
         tools=make_tools(profile),
         session_manager=store.session_manager(user_id, session_id),
         conversation_manager=SlidingWindowConversationManager(window_size=20),

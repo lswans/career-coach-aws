@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { sse, streamResponse } from '../test/fixtures';
+import { PROFILE_RESPONSE, sse, streamResponse } from '../test/fixtures';
 import { CoachPanel } from './CoachPanel';
 
 const NOTE = { kind: 'certification', text: 'Passed the AWS Cloud Practitioner exam', skill: 'AWS', created_at: '2026-10-06T22:00:00Z' };
@@ -102,5 +102,92 @@ describe('CoachPanel', () => {
     expect(await screen.findByText('Back online.')).toBeInTheDocument();
     expect(screen.getAllByText('Help me plan my week')).toHaveLength(1);
     expect(savedChat().messages.map((m) => m.text)).toEqual(['Help me plan my week', 'Back online.']);
+    // the retry is the same request, so the server can't record its progress or refresh twice
+    const ids = fetchMock.mock.calls.map((c) => JSON.parse((c[1] as RequestInit).body as string).request_id);
+    expect(ids[0]).toMatch(/^r-[0-9a-f]{24}$/);
+    expect(ids[1]).toBe(ids[0]);
+  });
+
+  it('a new message gets a new request id', async () => {
+    const user = userEvent.setup();
+    const fetchMock = vi.fn(async () => streamResponse([sse({ type: 'done', text: 'Ok.', tools: [], recorded: null })]));
+    vi.stubGlobal('fetch', fetchMock);
+    render(<CoachPanel userId="jordan-ab12" onMemorySaved={() => undefined} />);
+    await user.type(screen.getByLabelText('Message the coach'), 'One{Enter}');
+    await screen.findByText('Ok.');
+    await user.type(screen.getByLabelText('Message the coach'), 'Two{Enter}');
+    await screen.findAllByText('Ok.');
+    const calls = fetchMock.mock.calls as unknown as [string, RequestInit][];
+    const ids = calls.map((c) => JSON.parse(c[1].body as string).request_id);
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).not.toBe(ids[1]);
+  });
+
+  it('hands the complete refreshed profile up and says which version it is', async () => {
+    const user = userEvent.setup();
+    const updated = { ...PROFILE_RESPONSE, profile: { ...PROFILE_RESPONSE.profile, version: 3 } };
+    vi.stubGlobal('fetch', vi.fn(async () => streamResponse([
+      sse({ type: 'memory', note: NOTE })
+        + sse({ type: 'profile_refresh', state: 'active', detail: 'Refreshing your profile from version 2' })
+        + sse({ type: 'profile_updated', ...updated })
+        + sse({ type: 'done', text: 'Nice work.', tools: [], recorded: NOTE, profile_version: 3 }),
+    ])));
+    const onProfileUpdated = vi.fn();
+    render(<CoachPanel userId="jordan-ab12" onMemorySaved={() => undefined} onProfileUpdated={onProfileUpdated} />);
+    await user.type(screen.getByLabelText('Message the coach'), 'I passed it!{Enter}');
+
+    expect(await screen.findByText('Profile refreshed to version 3.')).toBeInTheDocument();
+    expect(onProfileUpdated).toHaveBeenCalledTimes(1);
+    expect(onProfileUpdated).toHaveBeenCalledWith(updated);
+    const stored = JSON.parse(localStorage.getItem('career-coach:chat:jordan-ab12')!).messages[1];
+    expect(stored.profileStatus).toEqual({ state: 'updated', version: 3 });
+  });
+
+  it('a saved note with a failed refresh never claims the profile changed, and offers a retry', async () => {
+    const user = userEvent.setup();
+    const message = 'Your profile was not refreshed: Amazon Bedrock is busy (throttled).';
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(streamResponse([
+        sse({ type: 'memory', note: NOTE })
+          + sse({ type: 'profile_refresh_failed', code: 'MODEL_UNAVAILABLE', message, note_saved: true, retryable: true })
+          + sse({ type: 'done', text: 'Congrats! Your note is saved.', tools: [], recorded: NOTE, profile_version: null }),
+      ]))
+      .mockResolvedValueOnce(streamResponse([
+        sse({ type: 'profile_updated', ...PROFILE_RESPONSE, profile: { ...PROFILE_RESPONSE.profile, version: 2 } })
+          + sse({ type: 'done', text: 'Done.', tools: [], recorded: null, profile_version: 2 }),
+      ]));
+    vi.stubGlobal('fetch', fetchMock);
+    const onProfileUpdated = vi.fn();
+    render(<CoachPanel userId="jordan-ab12" onMemorySaved={() => undefined} onProfileUpdated={onProfileUpdated} />);
+    await user.type(screen.getByLabelText('Message the coach'), 'I passed it!{Enter}');
+
+    expect(await screen.findByText('Profile not refreshed')).toBeInTheDocument();
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.getByText(`Saved to your progress log: ${NOTE.text}`)).toBeInTheDocument();
+    expect(screen.queryByText(/Profile refreshed to version/)).not.toBeInTheDocument();
+    expect(onProfileUpdated).not.toHaveBeenCalled();
+
+    await user.click(screen.getByRole('button', { name: 'Retry profile refresh' }));
+    expect(await screen.findByText('Profile refreshed to version 2.')).toBeInTheDocument();
+    const second = JSON.parse((fetchMock.mock.calls[1]![1] as RequestInit).body as string);
+    expect(second.message).toBe('Refresh my profile');
+    expect(onProfileUpdated).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole('button', { name: 'Retry profile refresh' })).not.toBeInTheDocument();
+  });
+
+  it('restores refresh outcomes from the stored transcript', () => {
+    localStorage.setItem('career-coach:chat:jordan-ab12', JSON.stringify({
+      sessionId: 's-old',
+      messages: [
+        { id: 'm1', role: 'user', text: 'I passed it!', requestId: 'r-000000000000000000000001' },
+        { id: 'm2', role: 'coach', text: 'Great.', profileStatus: { state: 'updated', version: 4 } },
+        { id: 'm3', role: 'user', text: 'Old message from before request ids' },
+        { id: 'm4', role: 'coach', text: 'Still readable.' },
+      ],
+    }));
+    render(<CoachPanel userId="jordan-ab12" onMemorySaved={() => undefined} />);
+    expect(screen.getByText('Profile refreshed to version 4.')).toBeInTheDocument();
+    expect(screen.getByText('Still readable.')).toBeInTheDocument();
   });
 });

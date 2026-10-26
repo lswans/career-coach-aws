@@ -72,13 +72,22 @@ export function App() {
     }
   }
 
-  // After the coach saves a progress note, fetch fresh insights so the trends update.
+  // After the coach saves a progress note, fetch fresh insights so the trends update. The answer is
+  // kept only if it describes the profile on screen: a refresh that finished first already brought
+  // newer insights, and these must not overwrite them.
   const refreshInsights = useCallback(() => {
     if (!user) return;
     getInsights(user.userId)
-      .then((insights) => setData((d) => (d ? { ...d, insights } : d)))
+      .then((insights) =>
+        setData((d) => (d && insights.trends.snapshots.at(-1)?.version === d.profile.version ? { ...d, insights } : d)),
+      )
       .catch(() => undefined); // the next profile load will catch up
   }, [user]);
+
+  // The coach rebuilt the profile: replace everything the dashboard shows with the new version.
+  const profileUpdated = useCallback((res: ProfileResponse) => {
+    setData((d) => (d && d.profile.version > res.profile.version ? d : res));
+  }, []);
 
   function startOver() {
     signOut();
@@ -163,6 +172,7 @@ export function App() {
         onUpdateProfile={() => setView({ name: 'setup', updating: true })}
         onStartOver={startOver}
         onMemorySaved={refreshInsights}
+        onProfileUpdated={profileUpdated}
       />
     );
   }

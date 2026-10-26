@@ -27,7 +27,9 @@ from .config import Settings
 from .ingest import Document, fit_to_budget
 from .llm import model_label, model_name, stream_structured
 from .memory.base import MemoryStore, note_sentence
-from .schemas import CareerProfile, ProfileDraft
+from .progress import (LOG_NAME, baseline_document, bounded_notes, drop_completed, ensure_evidence, notes_since,
+                       original_sources)
+from .schemas import CareerProfile, ProfileDraft, SourceDoc
 from .search import WebSearch
 from .verify import verify_opportunities
 
@@ -92,6 +94,33 @@ def build_prompt(goals: str, corpus: str, notes: list[dict[str, Any]] | None = N
         "The headline is a one-line professional tagline about the person, not just their name. "
         "Keep every text field under 200 characters."
     )
+
+
+def build_refresh_prompt(goals: str, baseline: str, notes: list[dict[str, Any]], fresh: list[dict[str, Any]],
+                         left_out: int) -> str:
+    log = "\n".join(f"- {note_sentence(n)}" for n in notes) or "- (empty)"
+    new = "\n".join(f"- {note_sentence(n)}" for n in fresh) or "- Nothing new; re-check the profile against the log."
+    older = f"\n({left_out} older notes are not shown.)" if left_out else ""
+    return (
+        "CAREER GOALS (written by the person; keep them as they are):\n"
+        f"{goals}\n\n"
+        "BASELINE PROFILE:\n"
+        f"{baseline}\n\n"
+        f"PROGRESS LOG (oldest first):\n{log}{older}\n\n"
+        f"NEW SINCE THE BASELINE:\n{new}\n\n"
+        "Update the baseline profile with the progress log. Keep baseline skills and their evidence unless "
+        "the log changes them. Add each finished certification, course or project as evidence (quote the log) "
+        "on the skill it proves, and raise that skill's level only if the log is real proof. Recalculate "
+        "goal_alignment, weaknesses and opportunities against the goals. Never suggest a step the log shows is "
+        "done: replace it with the next logical step.\n\n"
+        "Return the career profile as JSON: 5-10 skills, 3-5 weaknesses, 3-5 opportunities. "
+        "Keep every text field under 200 characters."
+    )
+
+
+def next_version(history: list[dict[str, Any]]) -> int:
+    """One past the highest saved version. Counting alone would reuse a number if a record were missing."""
+    return max([len(history), *(int(p.get("version", 0) or 0) for p in history)]) + 1
 
 
 def progress_event(text: str) -> dict[str, Any]:
@@ -191,20 +220,45 @@ async def synthesize_events(
     checker: Any = None,
     search: WebSearch | None = None,
     notes: list[dict[str, Any]] | None = None,
+    baseline: dict[str, Any] | None = None,
+    request_id: str = "",
 ) -> AsyncIterator[dict[str, Any]]:
-    corpus, sources = fit_to_budget(docs, settings.max_doc_chars)
-    detail = f"{plural(len(sources), 'document')} · {sum(s.chars for s in sources):,} characters"
-    if any(s.truncated for s in sources):
-        detail += " (long ones trimmed to fit)"
-    if notes:
-        detail += f" · {plural(min(len(notes), MAX_NOTES), 'progress note')}"
+    """Build and save one profile version.
+
+    With `baseline` (a chat-driven refresh), `docs` is ignored: the previous profile becomes the
+    one source document and `goals` should be the baseline's own goals. `notes` is always the
+    complete progress log; the model sees a bounded part of it (coach/progress.py), while the
+    completed-step check reads all of it.
+    """
+    notes = notes or []
+    fresh: list[dict[str, Any]] = []
+    if baseline is None:
+        corpus, sources = fit_to_budget(docs, settings.max_doc_chars)
+        detail = f"{plural(len(sources), 'document')} · {sum(s.chars for s in sources):,} characters"
+        if any(s.truncated for s in sources):
+            detail += " (long ones trimmed to fit)"
+        if notes:
+            detail += f" · {plural(min(len(notes), MAX_NOTES), 'progress note')}"
+        prompt = build_prompt(goals, corpus, notes)
+        notes_used = min(len(notes), MAX_NOTES)
+    else:
+        shown, left_out = bounded_notes(notes)
+        fresh = notes_since(notes, str(baseline.get("created_at", "")))
+        corpus, sources = fit_to_budget([baseline_document(baseline, settings.max_doc_chars)], settings.max_doc_chars)
+        sources = [*_kept_sources(baseline), *sources,
+                   SourceDoc(name=LOG_NAME.format(count=plural(len(shown), "note")), kind="text",
+                             chars=sum(len(note_sentence(n)) for n in shown))]
+        detail = (f"Profile version {baseline.get('version', '?')} as the baseline · "
+                  f"{plural(len(shown), 'progress note')}" + (f" ({left_out} older left out)" if left_out else ""))
+        prompt = build_refresh_prompt(goals, corpus, shown, fresh, left_out)
+        notes_used = len(shown)
     yield stage("read", "done", detail)
 
     name = model_name(model, settings.active_model_id)
     label = model_label(name)
     place = "on Amazon Bedrock" if settings.provider == "bedrock" else "on this computer"
     yield stage("model", "active", f"{label} is reading them {place}")
-    messages = [{"role": "user", "content": [{"text": build_prompt(goals, corpus, notes)}]}]
+    messages = [{"role": "user", "content": [{"text": prompt}]}]
     draft: ProfileDraft | None = None
     async with aclosing(_draft(model, messages, label)) as drafts:
         async for event in drafts:
@@ -213,11 +267,15 @@ async def synthesize_events(
             else:
                 yield event
     draft = clean_draft(draft)
-    yield stage(
-        "model", "done",
-        f"{plural(len(draft.skills), 'skill')} · {plural(len(draft.weaknesses), 'gap')} · "
-        f"{plural(len(draft.opportunities), 'next step')}",
-    )
+    # Checked in code, not left to the model: a finished step is never suggested again, and a new
+    # milestone shows up as evidence on the skill it proves.
+    opportunities, dropped = drop_completed(draft.opportunities, notes)
+    draft = draft.model_copy(update={"opportunities": opportunities, "skills": ensure_evidence(draft.skills, fresh)})
+    done_detail = (f"{plural(len(draft.skills), 'skill')} · {plural(len(draft.weaknesses), 'gap')} · "
+                   f"{plural(len(draft.opportunities), 'next step')}")
+    if dropped:
+        done_detail += f" · dropped {plural(len(dropped), 'finished step')}"
+    yield stage("model", "done", done_detail)
 
     checked: list[Any] = []
     async for event in verify_opportunities(draft.opportunities, search=search or WebSearch("off", None),
@@ -229,7 +287,7 @@ async def synthesize_events(
 
     where = "AgentCore Memory" if store.backend == "agentcore" else "local files"
     yield stage("save", "active", f"Saving to {where}")
-    version = len(await asyncio.to_thread(store.profile_history, user_id)) + 1
+    version = next_version(await asyncio.to_thread(store.profile_history, user_id))
     profile = CareerProfile(
         **draft.model_dump(exclude={"opportunities"}),
         opportunities=checked,
@@ -239,10 +297,24 @@ async def synthesize_events(
         goals=goals,
         sources=sources,
         model=name,
+        origin="intake" if baseline is None else "refresh",
+        request_id=request_id,
+        notes_used=notes_used,
     )
     await asyncio.to_thread(store.save_profile, user_id, profile.model_dump(mode="json"))
     yield stage("save", "done", f"Version {version} saved to {where}")
     yield {"type": "profile", "profile": profile}
+
+
+def _kept_sources(baseline: dict[str, Any]) -> list[SourceDoc]:
+    """The original documents the baseline came from (refresh-made entries are replaced, not stacked)."""
+    kept = []
+    for source in original_sources(baseline):
+        try:
+            kept.append(SourceDoc.model_validate(source))
+        except ValueError:  # a malformed old entry is not worth failing a refresh over
+            continue
+    return kept
 
 
 async def synthesize_profile(**kwargs: Any) -> CareerProfile:

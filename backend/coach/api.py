@@ -9,9 +9,11 @@ requires a Cognito access token on every user route and takes the user id from t
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import re
+import weakref
 from collections.abc import AsyncIterator, Callable
 from contextlib import aclosing
 from typing import Any
@@ -24,7 +26,7 @@ from fastapi.staticfiles import StaticFiles
 
 from . import __version__
 from .auth import AuthError, KeySource, bearer, jwks_client, verify
-from .coach_agent import build_coach, extract_progress, web_block, web_query
+from .coach_agent import build_coach, extract_progress, wants_refresh, web_block, web_query
 from .config import Settings, get_settings
 from .ingest import ALLOWED_EXTENSIONS, Document, IngestError, extract_text, normalize
 from .insights import compute_insights
@@ -32,7 +34,7 @@ from .limits import DailyLimits
 from .llm import build_model, explain_model_error, model_label, model_status
 from .memory import MemoryStore, make_store
 from .memory.base import MemoryUnavailable
-from .schemas import ChatRequest
+from .schemas import ChatRequest, ProgressNote
 from .search import SearchResult, WebSearch, make_search
 from .synthesis import SynthesisError, synthesize_events, synthesize_profile
 from .validation import IntakeError, validate_intake
@@ -78,6 +80,12 @@ def build_error(exc: Exception, settings: Settings) -> ApiError:
     if isinstance(exc, MemoryUnavailable):
         return ApiError(503, "MEMORY_UNAVAILABLE", str(exc))
     return ApiError(503, "MODEL_UNAVAILABLE", friendly_model_error(exc, settings))  # no access, offline, throttled
+
+
+def derived_request_id(user_id: str, session_id: str, message: str) -> str:
+    """For clients that send no request_id: the same message in the same session counts as a retry."""
+    digest = hashlib.sha256(f"{user_id}\n{session_id}\n{message}".encode()).hexdigest()
+    return f"h-{digest[:32]}"
 
 
 def own_words(profile: dict[str, Any]) -> str:
@@ -173,6 +181,21 @@ def create_app(
     def insights_for(user_id: str) -> dict[str, Any] | None:
         return compute_insights(store.profile_history(user_id), store.list_notes(user_id))
 
+    # One lock per key while anyone holds or waits on it. The coach runs as one process (one uvicorn
+    # worker), so this is enough to stop two builds from saving the same version number.
+    locks: weakref.WeakValueDictionary[str, asyncio.Lock] = weakref.WeakValueDictionary()
+
+    def user_lock(key: str) -> asyncio.Lock:
+        lock = locks.get(key)
+        if lock is None:
+            lock = locks[key] = asyncio.Lock()
+        return lock
+
+    async def locked_build(user_id: str, events: AsyncIterator[dict[str, Any]]) -> AsyncIterator[dict[str, Any]]:
+        async with user_lock(f"profile:{user_id}"), aclosing(events):
+            async for event in events:
+                yield event
+
     @app.get("/api/me")
     async def me(request: Request) -> dict[str, Any]:
         """Hosted mode: who the token belongs to, so the website learns its user id after sign-in."""
@@ -248,10 +271,12 @@ def create_app(
             notes=await asyncio.to_thread(store.list_notes, user_id),
         )
         if "text/event-stream" in request.headers.get("accept", ""):
-            return StreamingResponse(build_stream(synthesize_events(**build), insights_for, settings),
+            return StreamingResponse(build_stream(locked_build(user_id, synthesize_events(**build)), insights_for,
+                                                  settings),
                                      media_type="text/event-stream", headers=SSE_HEADERS)
         try:
-            profile = await synthesize_profile(**build)
+            async with user_lock(f"profile:{user_id}"):
+                profile = await synthesize_profile(**build)
         except Exception as exc:
             raise build_error(exc, settings) from exc
         return {"profile": profile.model_dump(mode="json"), "insights": insights_for(user_id)}
@@ -274,21 +299,17 @@ def create_app(
 
     @app.post("/api/users/{user_id}/chat")
     async def chat(request: Request, user_id: str, body: ChatRequest) -> StreamingResponse:
-        check_user(request, user_id)
+        check_user(request, user_id)  # every profile mutation below is keyed by this verified id
         profile = store.latest_profile(user_id)
         if profile is None:
             raise ApiError(409, "PROFILE_REQUIRED", "Create your profile before chatting with your coach.")
         spend("chat", user_id)
+        request_id = body.request_id or derived_request_id(user_id, body.session_id, body.message)
         # A question about certifications, courses, jobs or events is searched while progress is extracted.
         query = web_query(body.message, profile) if search.enabled else None
         lookup = asyncio.create_task(search.asearch(query, 4)) if query else None
         try:
-            try:
-                note = await extract_progress(make_model("extract"), body.message)
-            except Exception as exc:
-                raise ApiError(503, "MODEL_UNAVAILABLE", friendly_model_error(exc, settings)) from exc
-            if note:
-                await asyncio.to_thread(store.add_note, user_id, note.model_dump())
+            note = await record_progress(user_id, request_id, body.message, profile)
         except BaseException:
             if lookup:
                 lookup.cancel()
@@ -299,24 +320,118 @@ def create_app(
                 results = await lookup
             except Exception:  # noqa: BLE001 - no search results never stops the coach from answering
                 logger.info("web search skipped for this chat turn", exc_info=True)
-        agent = await asyncio.to_thread(
-            lambda: build_coach(
-                store=store,
-                model=make_model("chat"),
-                user_id=user_id,
-                session_id=body.session_id,
-                profile=profile,
-                user_message=body.message,
-                recorded=note,
-                web=web_block(query or "", results),
-            )
-        )
+        refresh = note is not None or wants_refresh(body.message)
         return StreamingResponse(
-            stream_chat(agent, body.message, settings, note.model_dump() if note else None, results, search,
-                        own_words(profile)),
+            chat_turn(user_id, body, request_id, profile, note, refresh, query or "", results),
             media_type="text/event-stream",
             headers=SSE_HEADERS,
         )
+
+    async def record_progress(user_id: str, request_id: str, message: str,
+                              profile: dict[str, Any]) -> dict[str, Any] | None:
+        """Save the progress this message reports, once. A retry of the same request gets the stored note."""
+        notes = await asyncio.to_thread(store.list_notes, user_id)
+        stored = next((n for n in notes if n.get("request_id") == request_id), None)
+        if stored:
+            return stored
+        try:
+            note = await extract_progress(make_model("extract"), message, profile, request_id)
+        except Exception as exc:
+            raise ApiError(503, "MODEL_UNAVAILABLE", friendly_model_error(exc, settings)) from exc
+        if note is None:
+            return None
+        async with user_lock(f"notes:{user_id}"):  # two in-flight retries: only the first one writes
+            notes = await asyncio.to_thread(store.list_notes, user_id)
+            stored = next((n for n in notes if n.get("request_id") == request_id), None)
+            if stored:
+                return stored
+            data = note.model_dump()
+            await asyncio.to_thread(store.add_note, user_id, data)
+            return data
+
+    async def refresh_profile(user_id: str, request_id: str, note_saved: bool) -> AsyncIterator[dict[str, Any]]:
+        """Rebuild the profile from the latest version and the progress log, as version N+1.
+
+        Runs under the user's lock, so two refreshes can't read the same history and save the
+        same version number. A request that already produced a version replays it instead.
+        Ends with profile_updated, or profile_refresh_failed (the note, if any, stays saved).
+        """
+
+        def failed(code: str, message: str, retryable: bool) -> dict[str, Any]:
+            return {"type": "profile_refresh_failed", "code": code, "message": message,
+                    "note_saved": note_saved, "retryable": retryable}
+
+        async with user_lock(f"profile:{user_id}"):
+            history = await asyncio.to_thread(store.profile_history, user_id)
+            done = next((p for p in reversed(history) if p.get("request_id") == request_id), None)
+            if done is None:
+                notes = await asyncio.to_thread(store.list_notes, user_id)
+                if not notes:
+                    yield failed("NO_PROGRESS", "Your profile was not refreshed: there is no progress in your "
+                                 "log yet. Tell me what you've finished first.", False)
+                    return
+                if hosted and not limits.take("build", user_id):
+                    yield failed("DAILY_LIMIT", "Your profile was not refreshed: you've used today's profile "
+                                 "builds. Try again tomorrow.", False)
+                    return
+                baseline = history[-1]
+                yield {"type": "profile_refresh", "state": "active",
+                       "detail": f"Refreshing your profile from version {baseline.get('version', len(history))}"}
+                try:
+                    async with aclosing(synthesize_events(
+                        user_id=user_id, goals=str(baseline.get("goals", "")), docs=[], settings=settings,
+                        store=store, model=make_model("synthesis"), checker=make_model("verify"), search=search,
+                        notes=notes, baseline=baseline, request_id=request_id,
+                    )) as events:
+                        async for event in events:
+                            if event["type"] == "stage":
+                                yield {"type": "profile_refresh", "state": event["state"],
+                                       "stage": event["stage"], "detail": event["detail"]}
+                            elif event["type"] == "profile":
+                                done = event["profile"].model_dump(mode="json")
+                except Exception as exc:  # noqa: BLE001 - reported in-band; the chat reply still follows
+                    error = build_error(exc, settings)
+                    logger.warning("profile refresh failed for %s: %s", user_id, error.code)
+                    yield failed(error.code, f"Your profile was not refreshed: {error.message}", True)
+                    return
+                if done is None:
+                    yield failed("SYNTHESIS_FAILED", "Your profile was not refreshed: the build ended early.", True)
+                    return
+            insights = await asyncio.to_thread(insights_for, user_id)
+            yield {"type": "profile_updated", "profile": done, "insights": insights}
+
+    async def chat_turn(user_id: str, body: ChatRequest, request_id: str, profile: dict[str, Any],
+                        note: dict[str, Any] | None, refresh: bool, query: str,
+                        results: list[SearchResult]) -> AsyncIterator[str]:
+        """One chat turn: the saved note, then the profile refresh (if any), then the coach's reply,
+        which is grounded in whichever profile is current once the refresh has finished."""
+        if note:
+            yield sse({"type": "memory", "note": note})
+        outcome: dict[str, Any] | None = None
+        if refresh:
+            async for event in refresh_profile(user_id, request_id, note is not None):
+                if event["type"] == "profile_updated":
+                    profile = event["profile"]
+                    outcome = {"state": "updated", "version": profile.get("version")}
+                elif event["type"] == "profile_refresh_failed":
+                    outcome = {"state": "failed", "message": event["message"]}
+                yield sse(event)
+        try:
+            recorded = ProgressNote.model_validate(note) if note else None
+            agent = await asyncio.to_thread(
+                lambda: build_coach(
+                    store=store, model=make_model("chat"), user_id=user_id, session_id=body.session_id,
+                    profile=profile, user_message=body.message, recorded=recorded,
+                    web=web_block(query, results), refresh=outcome,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001 - the stream has started, so the error goes in-band
+            yield sse({"type": "error", "message": friendly_model_error(exc, settings)})
+            return
+        version = outcome.get("version") if outcome and outcome["state"] == "updated" else None
+        async for chunk in stream_chat(agent, body.message, settings, note, results, search, own_words(profile),
+                                       announce_memory=False, extra_done={"profile_version": version}):
+            yield chunk
 
     if settings.static_dir:  # mounted last, so /api/* routes always win
         app.mount("/", StaticFiles(directory=settings.static_dir, html=True), name="site")
@@ -350,10 +465,13 @@ async def stream_chat(
     sources: list[SearchResult] | None = None,
     search: WebSearch | None = None,
     known: str = "",
+    announce_memory: bool = True,
+    extra_done: dict[str, Any] | None = None,
 ) -> AsyncIterator[str]:
     """Server-sent events: memory (a note was saved), sources (web results), delta (text), tool,
-    check (offering names in the reply that no web result backs up), done, error."""
-    if recorded:
+    check (offering names in the reply that no web result backs up), done, error.
+    The chat route sends memory itself (before any profile refresh), so it passes announce_memory=False."""
+    if recorded and announce_memory:
         yield sse({"type": "memory", "note": recorded})
     if sources:
         yield sse({"type": "sources", "items": [{"title": r.title, "url": r.url} for r in sources]})
@@ -385,4 +503,4 @@ async def stream_chat(
             unbacked = []
         if unbacked:
             yield sse({"type": "check", "unverified": unbacked})
-    yield sse({"type": "done", "text": final, "tools": tools_used, "recorded": recorded})
+    yield sse({"type": "done", "text": final, "tools": tools_used, "recorded": recorded, **(extra_done or {})})

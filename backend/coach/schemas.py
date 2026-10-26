@@ -105,11 +105,20 @@ class CareerProfile(ProfileDraft):
     goals: str
     sources: list[SourceDoc]
     model: str
+    # How this version was made. Defaults describe every profile saved before chat refreshes existed.
+    origin: Literal["intake", "refresh"] = "intake"
+    request_id: str = ""  # the chat request that produced a refresh, so a retry finds it instead of rebuilding
+    notes_used: int = 0  # progress notes the model read for this version
+
+
+# A client-made id for one chat message, reused when that message is retried.
+REQUEST_ID = r"^[A-Za-z0-9][A-Za-z0-9_-]{7,99}$"
 
 
 class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=4000)
     session_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9_-]{0,99}$")
+    request_id: str | None = Field(default=None, pattern=REQUEST_ID)
 
 
 class ProgressNote(BaseModel):
@@ -117,3 +126,4 @@ class ProgressNote(BaseModel):
     text: str
     skill: str = ""
     created_at: str
+    request_id: str = ""  # absent on notes saved before retries were deduplicated

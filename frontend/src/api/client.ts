@@ -168,7 +168,7 @@ export async function buildProfile(
  */
 export async function streamChat(
   userId: string,
-  body: { message: string; session_id: string },
+  body: { message: string; session_id: string; request_id?: string },
   onEvent: (evt: ChatEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
