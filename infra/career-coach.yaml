@@ -36,8 +36,8 @@ Parameters:
     Default: public.ecr.aws/e7p7k5g6/career-coach@sha256:288850fdd88e5c67e896aa052f3c6ad00e9b383ecfe9b5744d9a8bd2d4699b2c
     Description: >-
       The Career Coach image on Amazon ECR Public, with a version tag or digest. Leave it as it is.
-      Anyone can download it; no sign-in is needed. Changing it on a stack update swaps the image
-      on the running server in about a minute, without rebuilding the server.
+      Anyone can download it; no sign-in is needed. Changing it on a stack update stops and starts
+      the same server (about 2-3 minutes), which then runs the new image.
     AllowedPattern: "^public\\.ecr\\.aws/[a-z0-9][a-z0-9._/-]{0,250}(:[A-Za-z0-9._-]{1,128}|@sha256:[a-f0-9]{64})$"
     ConstraintDescription: >-
       An Amazon ECR Public image with a tag or digest, such as
@@ -332,19 +332,47 @@ Resources:
         LaunchTemplateId: !Ref CoachLaunchTemplate
         Version: !GetAtt CoachLaunchTemplate.LatestVersionNumber
       Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-coach" }]
-      # The image is not in here on purpose: user data runs on the first boot only, and changing
-      # it stops and starts the server. CoachDeploy below installs and swaps the image instead.
+      # User data runs on EVERY boot (the cloud-config part sets scripts-user to "always"; by default
+      # it runs only on the first boot). ImageUri is in here, so changing it changes the user data,
+      # and CloudFormation stops and starts this same server: the script runs again, pulls the new
+      # image and restarts the coach. The instance is never replaced (see ServerAmiId), so the
+      # CloudFront origin never moves. No Run Command or State Manager is involved.
       UserData:
         Fn::Base64: !Sub |
+          Content-Type: multipart/mixed; boundary="//"
+          MIME-Version: 1.0
+
+          --//
+          Content-Type: text/cloud-config; charset="us-ascii"
+          MIME-Version: 1.0
+          Content-Transfer-Encoding: 7bit
+          Content-Disposition: attachment; filename="cloud-config.txt"
+
+          #cloud-config
+          cloud_final_modules:
+          - [scripts-user, always]
+
+          --//
+          Content-Type: text/x-shellscript; charset="us-ascii"
+          MIME-Version: 1.0
+          Content-Transfer-Encoding: 7bit
+          Content-Disposition: attachment; filename="career-coach.sh"
+
           #!/bin/bash
-          # Prepares the server for the Career Coach container. Log: /var/log/career-coach-setup.log
-          set -euo pipefail
+          # Starts the Career Coach container on every boot. Log: /var/log/career-coach-setup.log
+          set -uo pipefail
           exec > >(tee -a /var/log/career-coach-setup.log) 2>&1
-          dnf install -y aws-cfn-bootstrap docker
+          echo "=== boot at $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          # The stack only waits for a signal when it creates the server; later ones are ignored.
           signal() { /opt/aws/bin/cfn-signal -e "$1" --stack '${AWS::StackName}' --resource CoachInstance --region '${AWS::Region}' || true; }
-          trap 'signal 1' ERR
+          image='${ImageUri}'
+
+          if ! rpm -q docker aws-cfn-bootstrap > /dev/null 2>&1; then
+            dnf install -y aws-cfn-bootstrap docker || { echo "Could not install Docker"; signal 1; exit 1; }
+          fi
           systemctl enable --now docker
 
+          # Written on every boot, so a changed model or search key also takes effect.
           umask 027
           cat > /etc/career-coach.env <<'ENV'
           COACH_AUTH=cognito
@@ -356,86 +384,81 @@ Resources:
           AWS_REGION=${AWS::Region}
           TAVILY_API_KEY=${TavilyApiKey}
           ENV
+
+          # The image that ran before this boot: the image file, or the quoted image in a unit file
+          # from a template version that wrote the image straight into ExecStart.
+          previous=$(sed -n 's/^COACH_IMAGE=//p' /etc/career-coach.image 2>/dev/null || true)
+          if [ -z "$previous" ]; then
+            previous=$(grep -o "'public\.ecr\.aws/[^']*'" /etc/systemd/system/career-coach.service 2>/dev/null | tr -d "'" | head -n 1 || true)
+          fi
+          echo "Image before this boot: ${!previous:-none}. Image wanted: $image"
+
+          # --network host keeps the instance role reachable: the metadata service allows one
+          # network hop (IMDSv2, hop limit 1), and a bridged container would be a second hop.
+          umask 022
+          cat > /etc/systemd/system/career-coach.service <<'UNIT'
+          [Unit]
+          Description=Career Coach
+          After=docker.service network-online.target
+          Requires=docker.service
+          Wants=network-online.target
+          ConditionPathExists=/etc/career-coach.image
+
+          [Service]
+          EnvironmentFile=/etc/career-coach.image
+          ExecStartPre=-/usr/bin/docker rm -f career-coach
+          ExecStart=/usr/bin/docker run --rm --name career-coach --network host --env-file /etc/career-coach.env --cap-drop ALL --security-opt no-new-privileges ${!COACH_IMAGE}
+          ExecStop=/usr/bin/docker stop career-coach
+          Restart=always
+          RestartSec=5
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+
+          # Run $1 and wait until the health check answers from that exact image.
+          start() {
+            printf 'COACH_IMAGE=%s\n' "$1" > /etc/career-coach.image.new
+            mv /etc/career-coach.image.new /etc/career-coach.image
+            systemctl daemon-reload
+            systemctl enable career-coach
+            systemctl restart career-coach
+            for _ in $(seq 1 60); do
+              if curl -fsS http://127.0.0.1:8000/api/health > /dev/null &&
+                 [ "$(docker inspect career-coach --format '{{.Config.Image}}' 2>/dev/null)" = "$1" ]; then
+                return 0
+              fi
+              sleep 5
+            done
+            return 1
+          }
+
+          # Keeps the previous image serving when the new one can't be downloaded or won't start.
+          fall_back() {
+            echo "$1"
+            if [ -n "$previous" ] && [ "$previous" != "$image" ]; then
+              echo "Putting $previous back"
+              start "$previous" || echo "The previous image did not come back either. See: journalctl -u career-coach"
+            fi
+            signal 1
+            exit 1
+          }
+
+          pulled=no
+          for _ in 1 2 3 4 5; do
+            if docker pull "$image"; then pulled=yes; break; fi
+            sleep 10
+          done
+          [ "$pulled" = yes ] || fall_back "Could not download $image"
+          start "$image" || fall_back "The coach did not answer on port 8000 with $image. See: journalctl -u career-coach"
+          echo "The coach is running $image"
+          docker image prune -af > /dev/null || true  # keep the 20 GB disk from filling up
           signal 0
-
-  # Downloads the coach image and (re)starts it, through Systems Manager State Manager. It runs when
-  # the stack is created and again whenever ImageUri changes, and the stack waits for it: a failed
-  # health check fails the stack operation, which then rolls back to the previous image.
-  CoachDeploy:
-    Type: AWS::SSM::Association
-    Properties:
-      AssociationName: !Sub "${AWS::StackName}-coach-image"
-      Name: AWS-RunShellScript
-      Targets: [{ Key: InstanceIds, Values: [!Ref CoachInstance] }]
-      WaitForSuccessTimeoutSeconds: 900
-      Parameters:
-        executionTimeout: ["840"]
-        commands:
-          - !Sub |
-              set -eu
-              image='${ImageUri}'
-              previous=$(docker inspect career-coach --format '{{.Config.Image}}' 2>/dev/null || true)
-              echo "Deploying $image (running before: $previous)"
-              for i in 1 2 3 4 5; do
-                if docker pull "$image"; then break; fi
-                if [ "$i" = 5 ]; then echo "Could not download $image"; exit 1; fi
-                sleep 10
-              done
-
-              # --network host keeps the instance role reachable: the metadata service allows one
-              # network hop (IMDSv2, hop limit 1), and a bridged container would be a second hop.
-              cat > /etc/systemd/system/career-coach.service <<'UNIT'
-              [Unit]
-              Description=Career Coach
-              After=docker.service network-online.target
-              Requires=docker.service
-              Wants=network-online.target
-              ConditionPathExists=/etc/career-coach.image
-
-              [Service]
-              EnvironmentFile=/etc/career-coach.image
-              ExecStartPre=-/usr/bin/docker rm -f career-coach
-              ExecStart=/usr/bin/docker run --rm --name career-coach --network host --env-file /etc/career-coach.env --cap-drop ALL --security-opt no-new-privileges ${!COACH_IMAGE}
-              ExecStop=/usr/bin/docker stop career-coach
-              Restart=always
-              RestartSec=5
-
-              [Install]
-              WantedBy=multi-user.target
-              UNIT
-
-              start() {
-                printf 'COACH_IMAGE=%s\n' "$1" > /etc/career-coach.image.new
-                mv /etc/career-coach.image.new /etc/career-coach.image
-                systemctl daemon-reload
-                systemctl enable career-coach
-                systemctl restart career-coach
-                for i in $(seq 1 60); do
-                  if curl -fsS http://127.0.0.1:8000/api/health > /dev/null &&
-                     [ "$(docker inspect career-coach --format '{{.Config.Image}}' 2>/dev/null)" = "$1" ]; then
-                    return 0
-                  fi
-                  sleep 5
-                done
-                return 1
-              }
-
-              if start "$image"; then
-                echo "The coach is running $image"
-                docker image prune -af > /dev/null || true  # keep the 20 GB disk from filling up
-                exit 0
-              fi
-              echo "The coach did not answer on port 8000 with $image. See: journalctl -u career-coach"
-              if [ -n "$previous" ] && [ "$previous" != "$image" ]; then
-                echo "Putting $previous back"
-                start "$previous" || echo "The previous image did not come back either"
-              fi
-              exit 1
+          --//--
 
   # ---------- The HTTPS link ----------
   CoachVpcOrigin:
     Type: AWS::CloudFront::VpcOrigin
-    DependsOn: CoachDeploy  # publish the link only once the coach answers
     Properties:
       VpcOriginEndpointConfig:
         Name: !Sub "${AWS::StackName}-coach"

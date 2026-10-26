@@ -152,23 +152,27 @@ became "scikit-learn and ML modeling").
   It signs in to AWS through GitHub's OIDC provider, using a role from `infra/publish-image.yaml` that only that
   repository's tag builds can assume and that can push only to that one repository. It refuses to overwrite a tag
   that already exists, because attendees' stacks pin one.
-- **The stack waits for a working coach.** The instance's start-up script installs Docker and writes the coach's
-  settings, then sends `cfn-signal`. A Systems Manager State Manager association (`CoachDeploy`,
-  `AWS-RunShellScript`) then pulls the image named by `ImageUri` (public, so no credentials), runs it under
-  systemd with `--network host`, so the container reaches the instance role through IMDSv2 with a hop limit of 1,
-  and waits for `/api/health`. The stack waits for the association (`WaitForSuccessTimeoutSeconds`), and the
-  CloudFront origin depends on it, so `CREATE_COMPLETE` still means the health check answered. Nothing is
-  compiled in the attendee's account.
-- **Updating a running stack swaps the image, never the server.** CloudFront rejects any change to a VPC origin
+- **The stack waits for a working coach.** The instance's start-up script installs Docker, pulls the image named by
+  `ImageUri` (public, so no credentials), and runs it under systemd with `--network host`, so the container reaches
+  the instance role through IMDSv2 with a hop limit of 1. Only then does it send `cfn-signal`. `CREATE_COMPLETE`
+  therefore means the health check answered, and an image that can't be pulled or won't start rolls the stack back.
+  Nothing is compiled in the attendee's account.
+- **Updating a running stack restarts the server, never replaces it.** CloudFront rejects any change to a VPC origin
   while a distribution uses it (HTTP 409, "disassociate the VPC origin from all distributions"), so a new server
   can't take over the link inside one stack update. Found the hard way on 2026-10-26: an update that only changed
   `ImageUri` also picked up a newer Amazon Linux AMI from the public SSM parameter, replaced the instance, and
-  rolled back at `CoachVpcOrigin`. Two template rules prevent this. The image lives in the association, not in
-  user data (user data runs on first boot only, and changing it stops and starts the server), and changing
-  `ImageUri` updates the association, which State Manager runs at once. The script pulls the new image, restarts
-  the service, checks that the health endpoint answers from the new image, and puts the previous image back and
-  fails (so the stack rolls back) if it doesn't. And `ServerAmiId` pins the AMI: empty on create (newest AL2023),
-  then the `ServerAmi` output on every update.
+  rolled back at `CoachVpcOrigin`. Two template rules prevent this:
+  - `ServerAmiId` pins the AMI: empty on create (newest AL2023), then the `ServerAmi` output on every update.
+  - The user data is a MIME multi-part file whose cloud-config sets `cloud_final_modules: [[scripts-user, always]]`
+    ([the documented way](https://repost.aws/knowledge-center/execute-user-data-ec2) to run it on every boot;
+    by default it runs only on the first). `ImageUri` is in the user data, so changing it makes CloudFormation stop
+    and start the same instance, and the script pulls the new image on that boot. It checks that the health
+    endpoint answers from the new image; if the pull or the check fails it puts the previous image back, so a bad
+    image costs a restart, not an outage. The trade-off: an update takes 2-3 minutes of downtime, and
+    `UPDATE_COMPLETE` means the server restarted, not that the new image is healthy, so check `/api/health`.
+  - Systems Manager is not used for this. A State Manager association was tried first and never reached the agent
+    in an Amazon-managed account (command `Failed`, response code -1, nothing in the agent log), most likely an
+    organisation guardrail on Run Command.
 - **Least privilege.** The instance role can invoke the chosen inference profile (and the foundation models it
   routes to), subscribe through Bedrock on first use, and use this stack's memory only. Session Manager replaces
   SSH. IMDSv2 only, encrypted gp3 root volume.
