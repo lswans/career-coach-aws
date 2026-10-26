@@ -15,13 +15,14 @@ Metadata:
       - Label: { default: "The coach" }
         Parameters: [ImageUri]
       - Label: { default: "Optional" }
-        Parameters: [BedrockModelId, InstanceType, TavilyApiKey, LatestAmiId]
+        Parameters: [BedrockModelId, InstanceType, TavilyApiKey, ServerAmiId, LatestAmiId]
     ParameterLabels:
       SignInEmail: { default: "Your email (AWS sends your temporary password here)" }
       ImageUri: { default: "Coach container image" }
       BedrockModelId: { default: "Bedrock model" }
       InstanceType: { default: "Server size" }
       TavilyApiKey: { default: "Tavily API key (optional web search key)" }
+      ServerAmiId: { default: "Server AMI (empty for a new stack; the ServerAmi output when updating)" }
       LatestAmiId: { default: "Server image (leave as is)" }
 
 Parameters:
@@ -35,7 +36,8 @@ Parameters:
     Default: public.ecr.aws/e7p7k5g6/career-coach@sha256:288850fdd88e5c67e896aa052f3c6ad00e9b383ecfe9b5744d9a8bd2d4699b2c
     Description: >-
       The Career Coach image on Amazon ECR Public, with a version tag or digest. Leave it as it is.
-      Anyone can download it; no sign-in is needed.
+      Anyone can download it; no sign-in is needed. Changing it on a stack update swaps the image
+      on the running server in about a minute, without rebuilding the server.
     AllowedPattern: "^public\\.ecr\\.aws/[a-z0-9][a-z0-9._/-]{0,250}(:[A-Za-z0-9._-]{1,128}|@sha256:[a-f0-9]{64})$"
     ConstraintDescription: >-
       An Amazon ECR Public image with a tag or digest, such as
@@ -56,9 +58,22 @@ Parameters:
     Description: >-
       Leave empty to use the free keyless search. Busy shared networks can rate-limit it; a free
       Tavily key avoids that. It is stored in the server's start-up script in your own account.
+  ServerAmiId:
+    Type: String
+    Default: ""
+    AllowedPattern: "^(ami-[0-9a-f]{8,17})?$"
+    ConstraintDescription: Leave it empty, or enter an AMI id such as ami-0123456789abcdef0.
+    Description: >-
+      Leave empty when you create the stack: the server uses the newest Amazon Linux 2023 image.
+      When you update the stack, enter the stack's ServerAmi output here. Otherwise a newer Amazon
+      Linux image replaces the server, and CloudFront can't move its link to a new server while the
+      link is in use, so the update fails and rolls back.
   LatestAmiId:
     Type: AWS::SSM::Parameter::Value<AWS::EC2::Image::Id>
     Default: /aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-arm64
+
+Conditions:
+  PinServerAmi: !Not [!Equals [!Ref ServerAmiId, ""]]
 
 Rules:
   SupportedRegion:
@@ -306,7 +321,9 @@ Resources:
     CreationPolicy:
       ResourceSignal: { Count: 1, Timeout: PT15M }
     Properties:
-      ImageId: !Ref LatestAmiId
+      # A new image id replaces the server, and CloudFront refuses to move a VPC origin that a
+      # distribution is using, so an update must keep the image id (see ServerAmiId).
+      ImageId: !If [PinServerAmi, !Ref ServerAmiId, !Ref LatestAmiId]
       InstanceType: !Ref InstanceType
       SubnetId: !Ref PrivateSubnet
       SecurityGroupIds: [!Ref CoachSecurityGroup]
@@ -315,23 +332,18 @@ Resources:
         LaunchTemplateId: !Ref CoachLaunchTemplate
         Version: !GetAtt CoachLaunchTemplate.LatestVersionNumber
       Tags: [{ Key: Name, Value: !Sub "${AWS::StackName}-coach" }]
+      # The image is not in here on purpose: user data runs on the first boot only, and changing
+      # it stops and starts the server. CoachDeploy below installs and swaps the image instead.
       UserData:
         Fn::Base64: !Sub |
           #!/bin/bash
-          # Downloads and starts the Career Coach container. Log: /var/log/career-coach-setup.log
+          # Prepares the server for the Career Coach container. Log: /var/log/career-coach-setup.log
           set -euo pipefail
           exec > >(tee -a /var/log/career-coach-setup.log) 2>&1
           dnf install -y aws-cfn-bootstrap docker
           signal() { /opt/aws/bin/cfn-signal -e "$1" --stack '${AWS::StackName}' --resource CoachInstance --region '${AWS::Region}' || true; }
           trap 'signal 1' ERR
           systemctl enable --now docker
-
-          # The image is public on Amazon ECR Public, so no sign-in or IAM permission is needed.
-          for i in $(seq 1 5); do
-            docker pull '${ImageUri}' && break
-            if [ "$i" = 5 ]; then echo "Could not download ${ImageUri}"; signal 1; exit 1; fi
-            sleep 10
-          done
 
           umask 027
           cat > /etc/career-coach.env <<'ENV'
@@ -344,39 +356,86 @@ Resources:
           AWS_REGION=${AWS::Region}
           TAVILY_API_KEY=${TavilyApiKey}
           ENV
+          signal 0
 
-          # --network host keeps the instance role reachable: the metadata service allows one
-          # network hop (IMDSv2, hop limit 1), and a bridged container would be a second hop.
-          cat > /etc/systemd/system/career-coach.service <<'UNIT'
-          [Unit]
-          Description=Career Coach
-          After=docker.service network-online.target
-          Requires=docker.service
-          Wants=network-online.target
+  # Downloads the coach image and (re)starts it, through Systems Manager State Manager. It runs when
+  # the stack is created and again whenever ImageUri changes, and the stack waits for it: a failed
+  # health check fails the stack operation, which then rolls back to the previous image.
+  CoachDeploy:
+    Type: AWS::SSM::Association
+    Properties:
+      AssociationName: !Sub "${AWS::StackName}-coach-image"
+      Name: AWS-RunShellScript
+      Targets: [{ Key: InstanceIds, Values: [!Ref CoachInstance] }]
+      WaitForSuccessTimeoutSeconds: 900
+      Parameters:
+        executionTimeout: ["840"]
+        commands:
+          - !Sub |
+              set -eu
+              image='${ImageUri}'
+              previous=$(docker inspect career-coach --format '{{.Config.Image}}' 2>/dev/null || true)
+              echo "Deploying $image (running before: $previous)"
+              for i in 1 2 3 4 5; do
+                if docker pull "$image"; then break; fi
+                if [ "$i" = 5 ]; then echo "Could not download $image"; exit 1; fi
+                sleep 10
+              done
 
-          [Service]
-          ExecStartPre=-/usr/bin/docker rm -f career-coach
-          ExecStart=/usr/bin/docker run --rm --name career-coach --network host --env-file /etc/career-coach.env --cap-drop ALL --security-opt no-new-privileges '${ImageUri}'
-          ExecStop=/usr/bin/docker stop career-coach
-          Restart=always
-          RestartSec=5
+              # --network host keeps the instance role reachable: the metadata service allows one
+              # network hop (IMDSv2, hop limit 1), and a bridged container would be a second hop.
+              cat > /etc/systemd/system/career-coach.service <<'UNIT'
+              [Unit]
+              Description=Career Coach
+              After=docker.service network-online.target
+              Requires=docker.service
+              Wants=network-online.target
+              ConditionPathExists=/etc/career-coach.image
 
-          [Install]
-          WantedBy=multi-user.target
-          UNIT
-          systemctl daemon-reload
-          systemctl enable --now career-coach
+              [Service]
+              EnvironmentFile=/etc/career-coach.image
+              ExecStartPre=-/usr/bin/docker rm -f career-coach
+              ExecStart=/usr/bin/docker run --rm --name career-coach --network host --env-file /etc/career-coach.env --cap-drop ALL --security-opt no-new-privileges ${!COACH_IMAGE}
+              ExecStop=/usr/bin/docker stop career-coach
+              Restart=always
+              RestartSec=5
 
-          for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8000/api/health > /dev/null; then signal 0; exit 0; fi
-            sleep 5
-          done
-          echo "The coach did not answer on port 8000. See: journalctl -u career-coach"
-          signal 1
+              [Install]
+              WantedBy=multi-user.target
+              UNIT
+
+              start() {
+                printf 'COACH_IMAGE=%s\n' "$1" > /etc/career-coach.image.new
+                mv /etc/career-coach.image.new /etc/career-coach.image
+                systemctl daemon-reload
+                systemctl enable career-coach
+                systemctl restart career-coach
+                for i in $(seq 1 60); do
+                  if curl -fsS http://127.0.0.1:8000/api/health > /dev/null &&
+                     [ "$(docker inspect career-coach --format '{{.Config.Image}}' 2>/dev/null)" = "$1" ]; then
+                    return 0
+                  fi
+                  sleep 5
+                done
+                return 1
+              }
+
+              if start "$image"; then
+                echo "The coach is running $image"
+                docker image prune -af > /dev/null || true  # keep the 20 GB disk from filling up
+                exit 0
+              fi
+              echo "The coach did not answer on port 8000 with $image. See: journalctl -u career-coach"
+              if [ -n "$previous" ] && [ "$previous" != "$image" ]; then
+                echo "Putting $previous back"
+                start "$previous" || echo "The previous image did not come back either"
+              fi
+              exit 1
 
   # ---------- The HTTPS link ----------
   CoachVpcOrigin:
     Type: AWS::CloudFront::VpcOrigin
+    DependsOn: CoachDeploy  # publish the link only once the coach answers
     Properties:
       VpcOriginEndpointConfig:
         Name: !Sub "${AWS::StackName}-coach"
@@ -421,3 +480,6 @@ Outputs:
   ServerId:
     Description: For troubleshooting with Session Manager (journalctl -u career-coach).
     Value: !Ref CoachInstance
+  ServerAmi:
+    Description: Enter this as the Server AMI parameter whenever you update the stack.
+    Value: !If [PinServerAmi, !Ref ServerAmiId, !Ref LatestAmiId]
