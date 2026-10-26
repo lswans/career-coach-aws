@@ -31,8 +31,8 @@ Parameters:
     ConstraintDescription: Enter an email address you can read now.
   ImageUri:
     Type: String
-    # Version 1.0.0, pinned by digest so the image can't change under a deployed workshop.
-    Default: public.ecr.aws/e7p7k5g6/career-coach@sha256:070c7b0ffc555eb54632484a74513fab00bb6e50acfac2dd0eeb0cf6d77f743f
+    # Version 1.1.0, pinned by digest so the image can't change under a deployed workshop.
+    Default: public.ecr.aws/e7p7k5g6/career-coach@sha256:288850fdd88e5c67e896aa052f3c6ad00e9b383ecfe9b5744d9a8bd2d4699b2c
     Description: >-
       The Career Coach image on Amazon ECR Public, with a version tag or digest. Leave it as it is.
       Anyone can download it; no sign-in is needed.
