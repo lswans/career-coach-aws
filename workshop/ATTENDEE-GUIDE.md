@@ -25,7 +25,7 @@ The workshop's code and template are in the GitHub repository
 ### Step 1. Open the Bedrock playground
 
 Sign in to the [AWS console](https://console.aws.amazon.com) with the user from the prework, set the region in the
-top-right corner to **US East (N. Virginia)**, and open **Amazon Bedrock**. Choose **Model catalog**, then
+top-right corner to **US East 2 (Ohio)**, and open **Amazon Bedrock**. Choose **Model catalog**, then
 **Claude Haiku 5.5** (or the Claude model whose id you saved in the prework), and open it in the playground.
 
 ### Step 2. Say hi
