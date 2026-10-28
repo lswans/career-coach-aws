@@ -26,7 +26,7 @@ The workshop's code and template are in the GitHub repository
 
 Sign in to the [AWS console](https://console.aws.amazon.com) with the user from the prework, set the region in the
 top-right corner to **US East (N. Virginia)**, and open **Amazon Bedrock**. Choose **Model catalog**, then
-**Claude Haiku 5.5**, and open it in the playground.
+**Claude Haiku 5.5** (or the Claude model whose id you saved in the prework), and open it in the playground.
 
 ### Step 2. Say hi
 
@@ -57,6 +57,7 @@ Under **Specify template**, choose **Upload a template file**, choose the file f
 
 - **Stack name**: `career-coach`
 - **Your email**: an address you can open now. AWS sends your temporary password there.
+- **Bedrock model** (under **Optional**): leave it as it is, unless Claude Haiku 5.5 didn't answer for you in the prework. In that case, replace it with the model id you saved, such as `us.anthropic.claude-sonnet-4-6`.
 - Leave everything else as it is, including **Coach container image**, and choose **Next**.
 
 ### Step 7. Skip the options page
@@ -256,7 +257,27 @@ curl -fsSLO https://raw.githubusercontent.com/lswans/career-coach-aws/main/infra
 bash teardown.sh
 ```
 
-Type `career-coach` when it asks. If either way gets stuck, the
+Type `career-coach` when it asks.
+
+If you prefer the AWS CLI, you can delete the stack directly. Use the same account and the same region you
+deployed in. First check who you are signed in as:
+
+```bash
+aws sts get-caller-identity
+```
+
+Then delete the stack and wait for it to finish:
+
+```bash
+aws cloudformation delete-stack --stack-name career-coach --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name career-coach --region us-east-1
+```
+
+If you deployed in US East (Ohio) or US West (Oregon), replace `us-east-1` with `us-east-2` or `us-west-2` in both commands. The direct CLI method
+permanently deletes the stack and its data, and unlike the teardown script it does not retry a failed delete or
+check for leftover billable resources, so watch for a `DELETE_FAILED` status and handle it yourself.
+
+If either way gets stuck, the
 [teardown guide](https://github.com/lswans/career-coach-aws/blob/main/skills/teardown/SKILL.md) lists the usual
 causes and how to check for leftovers by hand.
 
@@ -269,7 +290,7 @@ The message starts with the words in the first column.
 
 | Symptom | Fix |
 |---|---|
-| The stack won't start: "Deploy in US East (N. Virginia) or US West (Oregon)" | Switch the console region in the top-right corner and start again |
+| The stack won't start: "Deploy in US East (N. Virginia), US East (Ohio) or US West (Oregon)" | Switch the console region in the top-right corner and start again |
 | `ROLLBACK_IN_PROGRESS`, and the Events tab says the server "Failed to receive 1 resource signal" | The server couldn't download or start the coach. Check that **Coach container image** was left as it is, then delete the stack and create it again. If it fails a second time, ask the presenter |
 | `ROLLBACK_IN_PROGRESS` with an IAM or "not authorized" message | Your user needs administrator access (prework step 1) |
 | No email after the stack finished | Check the spam folder. If the email address was mistyped, delete the stack and create it again |
@@ -278,6 +299,7 @@ The message starts with the words in the first column.
 | "Anthropic asks for a one-time use-case form" | In the Bedrock console, open **Model catalog**, choose **Claude Haiku 5.5** and submit the form (prework step 2) |
 | "Claude models are sold through AWS Marketplace, so your AWS account needs a payment method" | Add one in the Billing console under **Payment preferences**, wait a few minutes, and try again |
 | "This AWS account or user can't use Claude Haiku 5.5 yet" | Upgrade a free-plan account to the paid plan. If you just sent the use-case form, wait for AWS's email |
+| The coach shows a Claude error, but another Claude model answers in the playground | Get that model's id (prework, "If Claude Haiku 5.5 still won't answer"). In CloudFormation, select the stack, choose **Update**, then **Use existing template**. Set **Bedrock model** to the new id and **Server AMI** to the value in the **ServerAmi** row of the **Outputs** tab, leave everything else, and submit. The server restarts with the new model in about 3 minutes |
 | "Amazon Bedrock is still verifying this new AWS account" | Only AWS can finish this, so open a support case. Pair with a neighbour for today |
 | "Amazon Bedrock is busy right now" | Wait a few seconds and try again |
 | "You've used today's profile builds" or "chat messages" | The stack caps each person at 10 builds and 100 chat messages a day, to protect your bill |

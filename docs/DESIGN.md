@@ -120,7 +120,7 @@ became "scikit-learn and ML modeling").
 
 ## The hosted stack (what workshop attendees deploy)
 
-`infra/career-coach.yaml` creates everything in the attendee's own account, in us-east-1 or us-west-2:
+`infra/career-coach.yaml` creates everything in the attendee's own account, in us-east-1, us-east-2 or us-west-2:
 
 ```
  Browser ──HTTPS──► CloudFront ──VPC origin (private, HTTP 8000)──► EC2 t4g.small, private subnet, no public IP

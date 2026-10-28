@@ -45,6 +45,10 @@ Parameters:
   BedrockModelId:
     Type: String
     Default: us.anthropic.claude-haiku-5-5
+    Description: >-
+      The US cross-region inference profile the coach calls. Leave it as it is unless Claude Haiku 5.5
+      didn't answer in the Bedrock playground. Then paste the id of a Claude model that did, such as
+      us.anthropic.claude-sonnet-4-6. The prework shows how to find the id.
     AllowedPattern: "^us\\.[a-z0-9.:-]+$"
     ConstraintDescription: A US cross-region inference profile id, such as us.anthropic.claude-haiku-5-5.
   InstanceType:
@@ -78,12 +82,13 @@ Conditions:
 Rules:
   SupportedRegion:
     Assertions:
-      - Assert: !Contains [[us-east-1, us-west-2], !Ref AWS::Region]
-        AssertDescription: Deploy in US East (N. Virginia) or US West (Oregon), where every service this stack uses is available.
+      - Assert: !Contains [[us-east-1, us-east-2, us-west-2], !Ref AWS::Region]
+        AssertDescription: Deploy in US East (N. Virginia), US East (Ohio) or US West (Oregon), where every service this stack uses is available.
 
 Mappings:
   CloudFrontOriginFacing:  # the CloudFront managed prefix list, per region
     us-east-1: { PrefixList: pl-3b927c52 }
+    us-east-2: { PrefixList: pl-b6a144df }
     us-west-2: { PrefixList: pl-82a045eb }
 
 Resources:

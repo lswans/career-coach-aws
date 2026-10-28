@@ -20,7 +20,7 @@ It was built for a Grace Hopper Celebration workshop.
 ## Deploy to your AWS account
 
 Switch on Claude Haiku 5.5 once in the Amazon Bedrock console ([the prework](workshop/PREWORK.md) shows how). Then
-in the CloudFormation console, in US East (N. Virginia) or US West (Oregon), create a stack from
+in the CloudFormation console, in US East (N. Virginia), US East (Ohio) or US West (Oregon), create a stack from
 [infra/career-coach.yaml](infra/career-coach.yaml) with your email and this repository's URL. It takes about 15
 minutes; the stack's **CoachUrl** output is your coach, and AWS emails you a temporary password. Delete the stack
 when you're done: the server and its NAT gateway are billed by the hour.
